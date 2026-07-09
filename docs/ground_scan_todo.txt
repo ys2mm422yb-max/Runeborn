@@ -1,1 +1,0 @@
-Inspect village and ruins packages for concrete tile/floor/ground models before changing runtime visuals.
