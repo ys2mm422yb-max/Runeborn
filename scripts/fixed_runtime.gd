@@ -33,6 +33,9 @@ var wave = 1
 var score = 0
 var hp = 100
 var wave_delay = -1.0
+var player_hit_pulse = 0.0
+var camera_shake = 0.0
+var player_hit_serial = 0
 
 func _ready():
     _build_environment()
@@ -44,6 +47,7 @@ func _ready():
 func _process(delta):
     _update_player(delta)
     _update_enemies(delta)
+    _update_player_hit_state(delta)
     _update_camera(delta)
 
     attack_timer -= delta
@@ -110,33 +114,22 @@ func _build_package_floor():
 
 func _build_fixed_forest():
     var tree_layout = [
-        [TREE_A, Vector3(-10.8, 0, -13.0), 1.35, 0.2],
-        [TREE_B, Vector3(-6.8, 0, -14.2), 1.48, 1.1],
-        [TREE_A, Vector3(-1.8, 0, -15.0), 1.30, 2.2],
-        [TREE_B, Vector3(3.5, 0, -14.8), 1.52, 0.6],
-        [TREE_A, Vector3(8.2, 0, -13.4), 1.38, 1.8],
-        [TREE_B, Vector3(11.2, 0, -9.7), 1.50, 2.7],
-        [TREE_A, Vector3(12.0, 0, -4.2), 1.34, 0.9],
-        [TREE_B, Vector3(12.2, 0, 1.8), 1.48, 2.1],
-        [TREE_A, Vector3(11.2, 0, 7.5), 1.38, 0.4],
-        [TREE_B, Vector3(8.0, 0, 12.4), 1.50, 1.5],
-        [TREE_A, Vector3(2.8, 0, 14.0), 1.34, 2.4],
-        [TREE_B, Vector3(-3.2, 0, 14.2), 1.50, 0.8],
-        [TREE_A, Vector3(-8.2, 0, 12.0), 1.38, 1.9],
-        [TREE_B, Vector3(-11.2, 0, 7.2), 1.46, 2.8],
-        [TREE_A, Vector3(-12.0, 0, 1.0), 1.32, 1.2],
-        [TREE_B, Vector3(-11.8, 0, -5.0), 1.48, 2.3]
+        [TREE_A, Vector3(-10.8, 0, -13.0), 1.35, 0.2], [TREE_B, Vector3(-6.8, 0, -14.2), 1.48, 1.1],
+        [TREE_A, Vector3(-1.8, 0, -15.0), 1.30, 2.2], [TREE_B, Vector3(3.5, 0, -14.8), 1.52, 0.6],
+        [TREE_A, Vector3(8.2, 0, -13.4), 1.38, 1.8], [TREE_B, Vector3(11.2, 0, -9.7), 1.50, 2.7],
+        [TREE_A, Vector3(12.0, 0, -4.2), 1.34, 0.9], [TREE_B, Vector3(12.2, 0, 1.8), 1.48, 2.1],
+        [TREE_A, Vector3(11.2, 0, 7.5), 1.38, 0.4], [TREE_B, Vector3(8.0, 0, 12.4), 1.50, 1.5],
+        [TREE_A, Vector3(2.8, 0, 14.0), 1.34, 2.4], [TREE_B, Vector3(-3.2, 0, 14.2), 1.50, 0.8],
+        [TREE_A, Vector3(-8.2, 0, 12.0), 1.38, 1.9], [TREE_B, Vector3(-11.2, 0, 7.2), 1.46, 2.8],
+        [TREE_A, Vector3(-12.0, 0, 1.0), 1.32, 1.2], [TREE_B, Vector3(-11.8, 0, -5.0), 1.48, 2.3]
     ]
     for entry in tree_layout:
         _spawn_asset(entry[0], entry[1], entry[2], entry[3])
 
     var rock_layout = [
-        [ROCK_A, Vector3(-8.0, 0, -8.5), 1.10, 0.4],
-        [ROCK_B, Vector3(7.8, 0, -9.0), 0.95, 1.7],
-        [ROCK_A, Vector3(8.8, 0, 6.8), 1.22, 2.6],
-        [ROCK_B, Vector3(-8.8, 0, 7.5), 1.05, 0.9],
-        [ROCK_A, Vector3(-5.8, 0, 11.0), 0.90, 2.2],
-        [ROCK_B, Vector3(5.4, 0, 11.2), 1.00, 1.3]
+        [ROCK_A, Vector3(-8.0, 0, -8.5), 1.10, 0.4], [ROCK_B, Vector3(7.8, 0, -9.0), 0.95, 1.7],
+        [ROCK_A, Vector3(8.8, 0, 6.8), 1.22, 2.6], [ROCK_B, Vector3(-8.8, 0, 7.5), 1.05, 0.9],
+        [ROCK_A, Vector3(-5.8, 0, 11.0), 0.90, 2.2], [ROCK_B, Vector3(5.4, 0, 11.2), 1.00, 1.3]
     ]
     for entry in rock_layout:
         _spawn_asset(entry[0], entry[1], entry[2], entry[3])
@@ -217,6 +210,7 @@ func _spawn_wave():
         enemy.set_meta("death_time", 0.0)
         enemy.set_meta("knockback", Vector3.ZERO)
         enemy.set_meta("orbit_sign", -1.0 if index % 2 == 0 else 1.0)
+        enemy.set_meta("attack_serial", 0)
         add_child(enemy)
         enemies.append(enemy)
         _play_animation(enemy, ["walk", "run", "idle"])
@@ -323,8 +317,10 @@ func _update_enemies(delta):
 
         if distance <= attack_range and cooldown <= 0.0:
             enemy.set_meta("cooldown", _role_attack_cooldown(role))
-            hp = max(0, hp - _role_damage(role))
+            enemy.set_meta("attack_serial", int(enemy.get_meta("attack_serial", 0)) + 1)
             _play_animation(enemy, ["attack", "combat"])
+            if role != "mage":
+                _apply_player_damage(_role_damage(role), role)
 
 func _role_movement(enemy, role, offset, distance):
     var toward = offset.normalized()
@@ -334,19 +330,16 @@ func _role_movement(enemy, role, offset, distance):
         if distance > 2.1:
             return (toward * 0.72 + tangent * 0.78).normalized()
         return tangent
-
     if role == "warrior":
         if distance > 1.35:
             return toward
         return Vector3.ZERO
-
     if role == "mage":
         if distance < 3.1:
             return (-toward * 0.82 + tangent * 0.42).normalized()
         if distance > 4.2:
             return (toward * 0.66 + tangent * 0.34).normalized()
         return tangent
-
     if distance > 1.08:
         return toward
     return Vector3.ZERO
@@ -377,6 +370,27 @@ func _role_damage(role):
     if role == "mage":
         return 6
     return 5
+
+func _apply_player_damage(amount, source_role = "minion"):
+    hp = max(0, hp - int(amount))
+    player_hit_pulse = 1.0
+    player_hit_serial += 1
+    if source_role == "warrior":
+        camera_shake = max(camera_shake, 0.34)
+    elif source_role == "mage":
+        camera_shake = max(camera_shake, 0.26)
+    else:
+        camera_shake = max(camera_shake, 0.18)
+
+func _update_player_hit_state(delta):
+    if player == null:
+        return
+    player_hit_pulse = max(0.0, player_hit_pulse - delta * 5.8)
+    var squash = sin(player_hit_pulse * PI)
+    var target_scale = Vector3(1.0 + squash * 0.09, 1.0 - squash * 0.10, 1.0 + squash * 0.09)
+    player.scale = player.scale.lerp(target_scale, min(1.0, delta * 18.0))
+    if player_hit_pulse <= 0.01:
+        player.scale = player.scale.lerp(Vector3.ONE, min(1.0, delta * 12.0))
 
 func _attack_nearest():
     if player == null:
@@ -423,8 +437,15 @@ func _living_enemy_count():
 func _update_camera(delta):
     if player == null or camera == null:
         return
-    var desired = player.position + Vector3(0.0, 10.8, 8.2)
-    camera.position = camera.position.lerp(desired, min(1.0, delta * 6.0))
+    camera_shake = max(0.0, camera_shake - delta * 1.8)
+    var shake = Vector3.ZERO
+    if camera_shake > 0.0:
+        var ticks = float(Time.get_ticks_msec()) * 0.001
+        shake.x = sin(ticks * 63.0) * camera_shake * 0.42
+        shake.y = sin(ticks * 79.0) * camera_shake * 0.24
+        shake.z = cos(ticks * 57.0) * camera_shake * 0.30
+    var desired = player.position + Vector3(0.0, 10.8, 8.2) + shake
+    camera.position = camera.position.lerp(desired, min(1.0, delta * 8.0))
 
 func _play_animation(root, keywords):
     var players = root.find_children("*", "AnimationPlayer", true, false)
