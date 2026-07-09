@@ -10,6 +10,9 @@ var last_touch_time := -10.0
 var last_touch_position := Vector2.ZERO
 var dash_label: Label
 var spell_label: Label
+var pending_meteor: Node3D
+var pending_marker: Node3D
+var pending_meteor_position := Vector3.ZERO
 
 func _process(delta: float) -> void:
     dash_cooldown = max(0.0, dash_cooldown - delta)
@@ -85,14 +88,23 @@ func _cast_rune_meteor() -> void:
     meteor.position = target.global_position + Vector3(0.0, 10.0, 0.0)
     meteor.scale = Vector3.ONE * 2.1
     add_child(meteor)
-    var target_position := target.global_position + Vector3(0.0, 0.35, 0.0)
+
+    pending_meteor = meteor
+    pending_marker = marker
+    pending_meteor_position = target.global_position + Vector3(0.0, 0.35, 0.0)
+
     var tween := create_tween()
-    tween.tween_property(meteor, "global_position", target_position, 0.62).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-    tween.tween_callback(func() -> void:
-        _meteor_impact(target_position)
-        if is_instance_valid(meteor): meteor.queue_free()
-        if is_instance_valid(marker): marker.queue_free()
-    )
+    tween.tween_property(meteor, "global_position", pending_meteor_position, 0.62).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+    tween.tween_callback(_finish_rune_meteor)
+
+func _finish_rune_meteor() -> void:
+    _meteor_impact(pending_meteor_position)
+    if is_instance_valid(pending_meteor):
+        pending_meteor.queue_free()
+    if is_instance_valid(pending_marker):
+        pending_marker.queue_free()
+    pending_meteor = null
+    pending_marker = null
 
 func _meteor_impact(position: Vector3) -> void:
     _kick_camera(0.24, 0.42)
@@ -140,6 +152,9 @@ func _build_hud() -> void:
 
 func _refresh_combat_hud() -> void:
     if dash_label != null:
-        dash_label.text = "DASH  READY" if dash_cooldown <= 0.0 else "DASH  %.1fs" % dash_cooldown
+        if dash_cooldown <= 0.0:
+            dash_label.text = "DASH  READY"
+        else:
+            dash_label.text = "DASH  %.1fs" % dash_cooldown
     if spell_label != null:
         spell_label.text = "RUNE METEOR  %.1fs" % max(0.0, meteor_timer)
