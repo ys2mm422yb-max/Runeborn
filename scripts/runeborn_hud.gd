@@ -12,6 +12,8 @@ var score_text = null
 var state_text = null
 var spell_text = null
 var spell_frame = null
+var boot_panel = null
+var boot_text = null
 var pulse_time = 0.0
 var last_wave = -1
 var last_score = -1
@@ -20,12 +22,12 @@ var last_hp = -1
 func _ready():
     layer = 50
     game = get_parent()
-    _hide_debug_hud()
     _build_hud()
 
 func _process(delta):
     if game == null:
         return
+    _hide_debug_hud()
     pulse_time += delta
     _refresh_values(delta)
 
@@ -131,11 +133,29 @@ func _build_hud():
     state_text.add_theme_color_override("font_color", Color("e4d6f7"))
     add_child(state_text)
 
+    boot_panel = TextureRect.new()
+    boot_panel.position = Vector2(180.0, 1050.0)
+    boot_panel.size = Vector2(810.0, 300.0)
+    boot_panel.texture = border_texture
+    boot_panel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    boot_panel.stretch_mode = TextureRect.STRETCH_SCALE
+    boot_panel.modulate = Color(0.68, 0.55, 0.92, 0.96)
+    add_child(boot_panel)
+
+    boot_text = Label.new()
+    boot_text.position = Vector2(220.0, 1100.0)
+    boot_text.size = Vector2(730.0, 190.0)
+    boot_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    boot_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    boot_text.add_theme_font_size_override("font_size", 28)
+    boot_text.add_theme_color_override("font_color", Color("f7f1ff"))
+    add_child(boot_text)
+
 func _refresh_values(delta):
     var current_wave = int(game.get("wave"))
     var current_score = int(game.get("score"))
     var current_hp = int(game.get("hp"))
-    var boot_state = int(game.get("boot_state"))
+    var boot_state_value = int(game.get("boot_state"))
     var attack_time = float(game.get("player_attack_time"))
 
     if current_wave != last_wave:
@@ -153,12 +173,28 @@ func _refresh_values(delta):
         hp_text.text = "%d / 100" % current_hp
         last_hp = current_hp
 
-    if boot_state > 0:
+    if boot_state_value > 0:
         state_text.text = "DIE RUNENWELT WIRD GEFORMT"
+        boot_panel.visible = true
+        boot_text.visible = true
+        boot_text.text = _boot_message(boot_state_value)
+        var boot_pulse = 0.98 + sin(pulse_time * 2.4) * 0.025
+        boot_panel.scale = boot_panel.scale.lerp(Vector2(boot_pulse, boot_pulse), min(1.0, delta * 6.0))
     else:
         state_text.text = "THE WILD RUNE GROVE"
+        boot_panel.visible = false
+        boot_text.visible = false
 
     var pulse = 0.94 + sin(pulse_time * 3.6) * 0.04
     if attack_time > 0.0:
         pulse = 1.10
     spell_frame.scale = spell_frame.scale.lerp(Vector2(pulse, pulse), min(1.0, delta * 10.0))
+
+func _boot_message(boot_state_value):
+    if boot_state_value <= 2:
+        return "RUNES AWAKENING\nTHE GROVE REMEMBERS"
+    if boot_state_value <= 4:
+        return "WILD FORMS ANSWER\nMONSTERS ARE STIRRING"
+    if boot_state_value <= 6:
+        return "THE RUNE GROVE\nTAKES SHAPE"
+    return "FIRST WAVE\nBREAKS THE SILENCE"
