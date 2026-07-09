@@ -9,6 +9,7 @@ var game = null
 var spellbook = null
 var last_attack_timer = 0.0
 var effects = []
+var enemy_attack_serials = {}
 
 func _ready():
     game = get_parent()
@@ -24,6 +25,8 @@ func _process(delta):
     if attack_timer > last_attack_timer + 0.30:
         _spawn_player_cast()
     last_attack_timer = attack_timer
+
+    _scan_enemy_casts()
     _update_effects(delta)
 
 func _spawn_player_cast():
@@ -44,6 +47,39 @@ func _spawn_player_cast():
     trace.global_position = origin + Vector3(0.0, 0.08, 0.0)
     add_child(trace)
     effects.append({"node": trace, "kind": "trace", "life": 0.85, "max_life": 0.85, "target": target})
+
+func _scan_enemy_casts():
+    var enemy_list = game.get("enemies")
+    for enemy in enemy_list:
+        if not is_instance_valid(enemy):
+            continue
+        if not bool(enemy.get_meta("alive", true)):
+            continue
+        if str(enemy.get_meta("role", "")) != "mage":
+            continue
+
+        var id = enemy.get_instance_id()
+        var serial = int(enemy.get_meta("attack_serial", 0))
+        var previous = int(enemy_attack_serials.get(id, 0))
+        if serial > previous:
+            _spawn_enemy_mage_cast(enemy)
+        enemy_attack_serials[id] = serial
+
+func _spawn_enemy_mage_cast(enemy):
+    var player = game.get("player")
+    if player == null or not is_instance_valid(player):
+        return
+
+    var origin = enemy.global_position + Vector3(0.0, 0.92, 0.0)
+    var charge = _make_sprite(MAGIC_TEX, Color(0.30, 0.78, 1.0, 1.0), 0.0048)
+    charge.global_position = origin
+    add_child(charge)
+    effects.append({"node": charge, "kind": "enemy_cast", "life": 0.26, "max_life": 0.26})
+
+    var projectile = _make_sprite(TRACE_TEX, Color(0.26, 0.72, 1.0, 1.0), 0.0035)
+    projectile.global_position = origin
+    add_child(projectile)
+    effects.append({"node": projectile, "kind": "enemy_trace", "life": 1.10, "max_life": 1.10, "target": player, "damage": 6})
 
 func _nearest_living_enemy():
     var player = game.get("player")
@@ -83,7 +119,7 @@ func _update_effects(delta):
         var kind = str(effect["kind"])
         var ratio = clamp(float(effect["life"]) / float(effect["max_life"]), 0.0, 1.0)
 
-        if kind == "cast":
+        if kind == "cast" or kind == "enemy_cast":
             node.scale = Vector3.ONE * (0.55 + (1.0 - ratio) * 0.82)
             node.rotation.z += delta * 6.0
             _set_alpha(node, ratio)
@@ -102,7 +138,23 @@ func _update_effects(delta):
                 node.rotation.z = atan2(travel.y, travel.x)
             node.scale = Vector3.ONE * (0.62 + sin(Time.get_ticks_msec() * 0.018) * 0.08)
             if node.global_position.distance_to(destination) < 0.42:
-                _spawn_impact(destination)
+                _spawn_impact(destination, false)
+                _remove_effect(index)
+                index -= 1
+                continue
+
+        elif kind == "enemy_trace":
+            var target_player = effect["target"]
+            if target_player == null or not is_instance_valid(target_player):
+                _remove_effect(index)
+                index -= 1
+                continue
+            var enemy_destination = target_player.global_position + Vector3(0.0, 0.82, 0.0)
+            node.global_position = node.global_position.move_toward(enemy_destination, delta * 10.8)
+            node.scale = Vector3.ONE * (0.58 + sin(Time.get_ticks_msec() * 0.020) * 0.07)
+            if node.global_position.distance_to(enemy_destination) < 0.42:
+                _spawn_impact(enemy_destination, true)
+                game._apply_player_damage(int(effect["damage"]), "mage")
                 _remove_effect(index)
                 index -= 1
                 continue
@@ -121,13 +173,16 @@ func _update_effects(delta):
             _remove_effect(index)
         index -= 1
 
-func _spawn_impact(position):
-    var circle = _make_sprite(CIRCLE_TEX, Color(0.60, 0.34, 1.0, 1.0), 0.0046)
+func _spawn_impact(position, hostile):
+    var impact_color = Color(0.22, 0.72, 1.0, 1.0) if hostile else Color(0.60, 0.34, 1.0, 1.0)
+    var spark_color = Color(0.76, 0.94, 1.0, 1.0) if hostile else Color(0.94, 0.82, 1.0, 1.0)
+
+    var circle = _make_sprite(CIRCLE_TEX, impact_color, 0.0046)
     circle.global_position = position
     add_child(circle)
     effects.append({"node": circle, "kind": "impact", "life": 0.32, "max_life": 0.32})
 
-    var spark = _make_sprite(SPARK_TEX, Color(0.94, 0.82, 1.0, 1.0), 0.0040)
+    var spark = _make_sprite(SPARK_TEX, spark_color, 0.0040)
     spark.global_position = position + Vector3(0.0, 0.08, 0.0)
     add_child(spark)
     effects.append({"node": spark, "kind": "spark", "life": 0.26, "max_life": 0.26})
