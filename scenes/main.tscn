@@ -1,10 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=5 format=3]
 
-[ext_resource path="res://scripts/fixed_runtime.gd" type="Script" id="1_runtime"]
+[ext_resource path="res://scripts/landscape_runtime.gd" type="Script" id="1_runtime"]
 [ext_resource path="res://scripts/fixed_spellbook.gd" type="Script" id="2_spellbook"]
 [ext_resource path="res://scripts/fixed_cast_vfx.gd" type="Script" id="3_vfx"]
-[ext_resource path="res://scripts/fixed_hud.gd" type="Script" id="4_hud"]
-[ext_resource path="res://scripts/fixed_arena_polish.gd" type="Script" id="5_polish"]
+[ext_resource path="res://scripts/landscape_hud.gd" type="Script" id="4_hud"]
 
 [node name="Runeborn" type="Node3D"]
 script = ExtResource("1_runtime")
@@ -15,8 +14,5 @@ script = ExtResource("2_spellbook")
 [node name="FixedCastVFX" type="Node3D" parent="."]
 script = ExtResource("3_vfx")
 
-[node name="FixedArenaPolish" type="Node3D" parent="."]
-script = ExtResource("5_polish")
-
-[node name="FixedHUD" type="CanvasLayer" parent="."]
+[node name="LandscapeHUD" type="CanvasLayer" parent="."]
 script = ExtResource("4_hud")
