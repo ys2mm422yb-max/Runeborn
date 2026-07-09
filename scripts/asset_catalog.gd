@@ -18,6 +18,12 @@ static func collect_models(root: String, include_terms: Array[String] = [], excl
     result.sort()
     return result
 
+static func collect_models_limited(root: String, limit: int, include_terms: Array[String] = [], exclude_terms: Array[String] = []) -> Array[String]:
+    var result: Array[String] = []
+    _scan_limited(root, result, limit, include_terms, exclude_terms)
+    result.sort()
+    return result
+
 static func _scan(path: String, result: Array[String], include_terms: Array[String], exclude_terms: Array[String]) -> void:
     var dir := DirAccess.open(path)
     if dir == null:
@@ -35,6 +41,32 @@ static func _scan(path: String, result: Array[String], include_terms: Array[Stri
                     result.append(full)
         entry = dir.get_next()
     dir.list_dir_end()
+
+static func _scan_limited(path: String, result: Array[String], limit: int, include_terms: Array[String], exclude_terms: Array[String]) -> bool:
+    if result.size() >= limit:
+        return true
+    var dir := DirAccess.open(path)
+    if dir == null:
+        return false
+    dir.list_dir_begin()
+    var entry := dir.get_next()
+    while entry != "":
+        if entry != "." and entry != ".." and not entry.begins_with("__MACOSX") and not entry.begins_with("._"):
+            var full := path.path_join(entry)
+            if dir.current_is_dir():
+                if _scan_limited(full, result, limit, include_terms, exclude_terms):
+                    dir.list_dir_end()
+                    return true
+            else:
+                var lower := full.to_lower()
+                if (lower.ends_with(".glb") or lower.ends_with(".gltf")) and _allowed(lower, include_terms, exclude_terms):
+                    result.append(full)
+                    if result.size() >= limit:
+                        dir.list_dir_end()
+                        return true
+        entry = dir.get_next()
+    dir.list_dir_end()
+    return false
 
 static func _allowed(lower_path: String, include_terms: Array[String], exclude_terms: Array[String]) -> bool:
     for term in exclude_terms:
