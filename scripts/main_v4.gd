@@ -57,9 +57,7 @@ func _spawn_enemy(index: int, total: int, elite: bool) -> void:
     var spawn_position := Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
     _spawn_rune_rift(spawn_position, elite)
     var delay := 0.28 + float(index % 5) * 0.08
-    get_tree().create_timer(delay).timeout.connect(func() -> void:
-        _materialize_enemy(index, spawn_position, elite)
-    )
+    get_tree().create_timer(delay).timeout.connect(_materialize_enemy.bind(index, spawn_position, elite))
 
 func _materialize_enemy(index: int, spawn_position: Vector3, elite: bool) -> void:
     var path := monster_scenes[index % monster_scenes.size()]
@@ -108,7 +106,9 @@ func _spawn_rune_rift(position: Vector3, elite: bool) -> void:
         tween.tween_property(ring, "scale", target_scale, 0.34)
         tween.tween_property(ring, "rotation:y", ring.rotation.y + TAU, 0.34)
         tween.chain().tween_property(ring, "scale", Vector3.ZERO, 0.24)
-    RunebornFX.burst(self, position + Vector3(0.0, 0.55, 0.0), Color("d09bff") if elite else Color("8f6dff"), 1.25 if elite else 0.8)
+    var burst_color := Color("d09bff") if elite else Color("8f6dff")
+    var burst_size := 1.25 if elite else 0.8
+    RunebornFX.burst(self, position + Vector3(0.0, 0.55, 0.0), burst_color, burst_size)
     get_tree().create_timer(0.72).timeout.connect(root.queue_free)
 
 func _attach_elite_hp(enemy: Node3D) -> void:
@@ -232,14 +232,15 @@ func _update_player(delta: float) -> void:
 
 func _kill_enemy(enemy: Node3D) -> void:
     if is_instance_valid(enemy):
-        _spawn_xp(enemy.global_position, 12 if bool(enemy.get_meta("elite", false)) else 5)
+        var xp_amount := 12 if bool(enemy.get_meta("elite", false)) else 5
+        _spawn_xp(enemy.global_position, xp_amount)
     super._kill_enemy(enemy)
 
 func _spawn_xp(position: Vector3, amount: int) -> void:
     var shard := MeshInstance3D.new()
     shard.name = "RuneShard"
-    var mesh := PrismMesh.new()
-    mesh.size = Vector3(0.28, 0.6, 0.28)
+    var mesh := BoxMesh.new()
+    mesh.size = Vector3(0.22, 0.55, 0.22)
     shard.mesh = mesh
     var mat := StandardMaterial3D.new()
     mat.albedo_color = Color("7fe5ff")
@@ -311,7 +312,7 @@ func _add_upgrade_card(parent: VBoxContainer, title: String, description: String
     button.custom_minimum_size = Vector2(900.0, 230.0)
     button.text = title + "\n\n" + description
     button.add_theme_font_size_override("font_size", 30)
-    button.pressed.connect(func() -> void: _choose_upgrade(upgrade_id))
+    button.pressed.connect(_choose_upgrade.bind(upgrade_id))
     parent.add_child(button)
 
 func _choose_upgrade(upgrade_id: String) -> void:
