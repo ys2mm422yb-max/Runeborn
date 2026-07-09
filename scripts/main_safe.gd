@@ -213,11 +213,13 @@ func _spawn_one_nature(index):
     if packed == null:
         return
     var item = packed.instantiate()
-    var angle = boot_rng.randf_range(0.0, TAU)
-    var radius = boot_rng.randf_range(10.5, 27.0)
+    var ring = index / 8
+    var slot = index % 8
+    var angle = TAU * float(slot) / 8.0 + float(ring) * 0.22
+    var radius = 5.2 + float(ring) * 2.9
     item.position = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
-    item.rotation.y = boot_rng.randf_range(0.0, TAU)
-    item.scale = Vector3.ONE * boot_rng.randf_range(0.82, 1.38)
+    item.rotation.y = angle + boot_rng.randf_range(-0.55, 0.55)
+    item.scale = Vector3.ONE * boot_rng.randf_range(1.05, 1.55)
     add_child(item)
 
 func _start_wave():
