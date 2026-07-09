@@ -1,5 +1,5 @@
 ; Engine configuration file.
-; Runeborn bootstrap project for Godot 4 / Xogot.
+; Runeborn mobile project for Godot 4 / Xogot.
 config_version=5
 
 [application]
@@ -10,6 +10,7 @@ run/main_scene="res://scenes/main.tscn"
 window/size/viewport_width=1170
 window/size/viewport_height=2532
 window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 window/handheld/orientation=1
 
 [rendering]
