@@ -1,0 +1,1 @@
+Forest nature package contains vegetation/rock/tree assets selected for fixed arena. Ground terrain must come from another uploaded package; no procedural PlaneMesh fallback is allowed.
