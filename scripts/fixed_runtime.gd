@@ -296,8 +296,9 @@ func _update_enemies(delta):
                 enemy.queue_free()
             continue
 
-        var windup = max(0.0, float(enemy.get_meta("windup", 0.0)) - delta)
-        if windup > 0.0:
+        var previous_windup = float(enemy.get_meta("windup", 0.0))
+        if previous_windup > 0.0:
+            var windup = max(0.0, previous_windup - delta)
             enemy.set_meta("windup", windup)
             var windup_ratio = windup / 0.38
             enemy.scale = base_scale * (1.0 + (1.0 - windup_ratio) * 0.12)
@@ -305,11 +306,10 @@ func _update_enemies(delta):
             face_offset.y = 0.0
             if face_offset.length() > 0.01:
                 enemy.rotation.y = lerp_angle(enemy.rotation.y, atan2(face_offset.x, face_offset.z), min(1.0, delta * 14.0))
-            if windup <= delta:
+            if windup <= 0.0:
                 enemy.scale = base_scale
                 _apply_player_damage(_role_damage("warrior"), "warrior")
             continue
-        enemy.set_meta("windup", 0.0)
 
         var hit_punch = max(0.0, float(enemy.get_meta("hit_punch", 0.0)) - delta * 6.8)
         enemy.set_meta("hit_punch", hit_punch)
