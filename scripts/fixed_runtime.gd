@@ -48,7 +48,7 @@ func _process(delta):
 
     attack_timer -= delta
     if attack_timer <= 0.0:
-        attack_timer = 0.72
+        attack_timer = 0.62
         _attack_nearest()
 
     if wave_delay >= 0.0:
@@ -201,18 +201,62 @@ func _spawn_wave():
         if enemy == null:
             push_error("MONSTER INSTANCE FAILED: " + path)
             continue
+
+        var role = _role_for_index(index)
         var angle = TAU * float(index) / float(count)
         var radius = 8.2 + float(index % 2) * 1.1
         enemy.position = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
         enemy.rotation.y = angle + PI
-        enemy.scale = Vector3.ONE * 0.95
-        enemy.set_meta("hp", 3 + wave)
-        enemy.set_meta("speed", 1.35 + float(wave) * 0.05)
-        enemy.set_meta("cooldown", 0.0)
+        enemy.scale = Vector3.ONE * _role_scale(role)
+        enemy.set_meta("role", role)
+        enemy.set_meta("hp", _role_hp(role))
+        enemy.set_meta("speed", _role_speed(role))
+        enemy.set_meta("cooldown", 0.25 + float(index % 4) * 0.12)
         enemy.set_meta("alive", true)
+        enemy.set_meta("stagger", 0.0)
+        enemy.set_meta("death_time", 0.0)
+        enemy.set_meta("knockback", Vector3.ZERO)
+        enemy.set_meta("orbit_sign", -1.0 if index % 2 == 0 else 1.0)
         add_child(enemy)
         enemies.append(enemy)
         _play_animation(enemy, ["walk", "run", "idle"])
+
+func _role_for_index(index):
+    var slot = index % 4
+    if slot == 1:
+        return "rogue"
+    if slot == 2:
+        return "warrior"
+    if slot == 3:
+        return "mage"
+    return "minion"
+
+func _role_scale(role):
+    if role == "warrior":
+        return 1.08
+    if role == "rogue":
+        return 0.90
+    if role == "mage":
+        return 0.96
+    return 0.94
+
+func _role_hp(role):
+    if role == "warrior":
+        return 7 + wave * 2
+    if role == "rogue":
+        return 4 + wave
+    if role == "mage":
+        return 5 + wave
+    return 3 + wave
+
+func _role_speed(role):
+    if role == "rogue":
+        return 2.05 + float(wave) * 0.05
+    if role == "warrior":
+        return 0.95 + float(wave) * 0.035
+    if role == "mage":
+        return 1.18 + float(wave) * 0.04
+    return 1.48 + float(wave) * 0.045
 
 func _update_player(delta):
     if player == null:
@@ -238,20 +282,101 @@ func _update_enemies(delta):
         if not is_instance_valid(enemy):
             enemies.erase(enemy)
             continue
+
         if not bool(enemy.get_meta("alive", true)):
+            var death_time = float(enemy.get_meta("death_time", 0.0)) - delta
+            enemy.set_meta("death_time", death_time)
+            if death_time <= 0.0:
+                enemies.erase(enemy)
+                enemy.queue_free()
             continue
+
+        var stagger = max(0.0, float(enemy.get_meta("stagger", 0.0)) - delta)
+        enemy.set_meta("stagger", stagger)
+
+        var knockback = enemy.get_meta("knockback", Vector3.ZERO)
+        if knockback.length() > 0.02:
+            enemy.position += knockback * delta
+            enemy.set_meta("knockback", knockback.lerp(Vector3.ZERO, min(1.0, delta * 8.0)))
+
+        if stagger > 0.0:
+            continue
+
         var offset = player.position - enemy.position
         offset.y = 0.0
+        var distance = offset.length()
+        if distance <= 0.01:
+            continue
+
+        var role = str(enemy.get_meta("role", "minion"))
+        var speed = float(enemy.get_meta("speed", 1.5))
         var cooldown = max(0.0, float(enemy.get_meta("cooldown", 0.0)) - delta)
         enemy.set_meta("cooldown", cooldown)
-        if offset.length() > 1.1:
-            enemy.position += offset.normalized() * float(enemy.get_meta("speed", 1.5)) * delta
+
+        var movement = _role_movement(enemy, role, offset, distance)
+        var attack_range = _role_attack_range(role)
+
+        if movement.length() > 0.05:
+            enemy.position += movement.normalized() * speed * delta
             enemy.rotation.y = lerp_angle(enemy.rotation.y, atan2(offset.x, offset.z), min(1.0, delta * 9.0))
             _play_animation(enemy, ["walk", "run"])
-        elif cooldown <= 0.0:
-            enemy.set_meta("cooldown", 0.95)
-            hp = max(0, hp - 5)
+
+        if distance <= attack_range and cooldown <= 0.0:
+            enemy.set_meta("cooldown", _role_attack_cooldown(role))
+            hp = max(0, hp - _role_damage(role))
             _play_animation(enemy, ["attack", "combat"])
+
+func _role_movement(enemy, role, offset, distance):
+    var toward = offset.normalized()
+    var tangent = Vector3(-toward.z, 0.0, toward.x) * float(enemy.get_meta("orbit_sign", 1.0))
+
+    if role == "rogue":
+        if distance > 2.1:
+            return (toward * 0.72 + tangent * 0.78).normalized()
+        return tangent
+
+    if role == "warrior":
+        if distance > 1.35:
+            return toward
+        return Vector3.ZERO
+
+    if role == "mage":
+        if distance < 3.1:
+            return (-toward * 0.82 + tangent * 0.42).normalized()
+        if distance > 4.2:
+            return (toward * 0.66 + tangent * 0.34).normalized()
+        return tangent
+
+    if distance > 1.08:
+        return toward
+    return Vector3.ZERO
+
+func _role_attack_range(role):
+    if role == "warrior":
+        return 1.35
+    if role == "rogue":
+        return 1.25
+    if role == "mage":
+        return 4.35
+    return 1.08
+
+func _role_attack_cooldown(role):
+    if role == "warrior":
+        return 1.45
+    if role == "rogue":
+        return 0.70
+    if role == "mage":
+        return 1.35
+    return 0.92
+
+func _role_damage(role):
+    if role == "warrior":
+        return 9
+    if role == "rogue":
+        return 4
+    if role == "mage":
+        return 6
+    return 5
 
 func _attack_nearest():
     if player == null:
@@ -266,21 +391,27 @@ func _attack_nearest():
                 target = enemy
     if target == null or best_distance > 42.25:
         return
+
     var offset = target.position - player.position
     offset.y = 0.0
     if offset.length() > 0.01:
         player.rotation.y = atan2(offset.x, offset.z)
     _play_animation(player, ["attack", "cast", "spell"])
+
     var enemy_hp = int(target.get_meta("hp", 1)) - 1
     target.set_meta("hp", enemy_hp)
+    target.set_meta("stagger", 0.18)
+    if offset.length() > 0.01:
+        target.set_meta("knockback", offset.normalized() * 4.8)
+
     if enemy_hp <= 0:
         target.set_meta("alive", false)
-        enemies.erase(target)
+        target.set_meta("death_time", 0.72)
+        target.set_meta("knockback", offset.normalized() * 2.8 if offset.length() > 0.01 else Vector3.ZERO)
         score += 5
         _play_animation(target, ["death", "die"])
-        target.queue_free()
         if _living_enemy_count() == 0:
-            wave_delay = 0.9
+            wave_delay = 1.15
 
 func _living_enemy_count():
     var count = 0
