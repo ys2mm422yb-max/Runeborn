@@ -33,7 +33,7 @@ func _apply_art_direction():
     for replacement in replacements:
         var old_node = replacement["node"]
         if is_instance_valid(old_node):
-            old_node.visible = false
+            _set_mesh_visibility(old_node, false)
         var path = TREE_C if index % 2 == 0 else TREE_D
         var scale_value = float(replacement["scale"]) * (0.82 if index % 2 == 0 else 0.76)
         _spawn_asset(path, replacement["position"], scale_value, float(replacement["rotation"]) + float(index % 5) * 0.22)
@@ -48,6 +48,12 @@ func _contains_tree_token(node, token):
         if _contains_tree_token(child, token):
             return true
     return false
+
+func _set_mesh_visibility(node, visible_value):
+    if node is MeshInstance3D:
+        node.visible = visible_value
+    for child in node.get_children():
+        _set_mesh_visibility(child, visible_value)
 
 func _add_midground_layers():
     var bush_positions = [
