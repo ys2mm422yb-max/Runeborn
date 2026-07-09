@@ -4,6 +4,7 @@ const SPELLBOOK_SCENE = "res://assets/characters/03_Characters/KayKit_Adventurer
 
 var mage = null
 var book = null
+var rune_light = null
 var float_time = 0.0
 var last_attack_time = 0.0
 var attack_push = 0.0
@@ -11,6 +12,7 @@ var attack_push = 0.0
 func _ready():
     set_process(true)
     _spawn_book()
+    _spawn_light()
 
 func _process(delta):
     float_time += delta
@@ -38,6 +40,10 @@ func _process(delta):
     rotation.y += delta * (0.55 + attack_push * 2.2)
     rotation.z = sin(float_time * 2.1) * 0.10
 
+    if rune_light != null:
+        rune_light.light_energy = 1.25 + sin(float_time * 4.2) * 0.18 + attack_push * 2.2
+        rune_light.omni_range = 3.2 + attack_push * 1.4
+
 func _spawn_book():
     var packed = load(SPELLBOOK_SCENE)
     if packed == null:
@@ -55,3 +61,11 @@ func _spawn_book():
     var scale_value = 0.52 / max_height
     book.scale = Vector3.ONE * scale_value
     book.rotation_degrees = Vector3(-18.0, 0.0, -12.0)
+
+func _spawn_light():
+    rune_light = OmniLight3D.new()
+    rune_light.light_color = Color("9d66ff")
+    rune_light.light_energy = 1.25
+    rune_light.omni_range = 3.2
+    rune_light.shadow_enabled = false
+    add_child(rune_light)
