@@ -20,9 +20,14 @@ var move_input = Vector2.ZERO
 var touch_origin = Vector2.ZERO
 var active_touch = -1
 var attack_timer = 0.0
+var player_attack_time = 0.0
 var wave = 1
 var score = 0
 var hp = 100
+var wave_pending = false
+var wave_delay = 0.0
+var camera_kick_time = 0.0
+var camera_kick_strength = 0.0
 
 var wave_label = null
 var score_label = null
@@ -46,12 +51,17 @@ func _process(delta):
     if boot_state > 0:
         _boot_step()
         return
+
+    player_attack_time = max(0.0, player_attack_time - delta)
+    camera_kick_time = max(0.0, camera_kick_time - delta)
     _update_player(delta)
     _update_enemies(delta)
+    _update_wave_transition(delta)
     _update_camera(delta)
+
     attack_timer -= delta
-    if attack_timer <= 0.0:
-        attack_timer = 0.62
+    if attack_timer <= 0.0 and not wave_pending:
+        attack_timer = 0.68
         _attack_nearest_enemy()
 
 func _input(event):
@@ -70,8 +80,8 @@ func _boot_step():
     if boot_state == 1:
         var all_monsters = _find_models_limited(MONSTER_ROOT, 500)
         var all_nature = _find_models_limited(NATURE_ROOT, 1400)
-        monster_paths = _sample_paths(all_monsters, 64)
-        nature_paths = _sample_paths(all_nature, 140)
+        monster_paths = _sample_paths(all_monsters, 32)
+        nature_paths = _sample_paths(all_nature, 48)
         boot_index = 0
         boot_state = 2
         status_label.text = "NATURE-ASSETS WERDEN VALIDiert ..."
@@ -109,11 +119,11 @@ func _boot_step():
 
     if boot_state == 5:
         var ground_steps = 0
-        while ground_steps < 2 and build_index < 48:
+        while ground_steps < 2 and build_index < 36:
             _spawn_ground_tile(build_index)
             build_index += 1
             ground_steps += 1
-        if build_index >= 48:
+        if build_index >= 36:
             build_index = 0
             boot_state = 6
             status_label.text = "WALDRAND AUS NATURE-PAKET ..."
@@ -121,11 +131,11 @@ func _boot_step():
 
     if boot_state == 6:
         var scenery_steps = 0
-        while scenery_steps < 2 and build_index < 44:
+        while scenery_steps < 2 and build_index < 32:
             _spawn_scenery_piece(build_index)
             build_index += 1
             scenery_steps += 1
-        if build_index >= 44:
+        if build_index >= 32:
             boot_state = 7
             status_label.text = "ERSTE MONSTERWELLE ..."
         return
@@ -218,7 +228,7 @@ func _spawn_player():
     var player_scale = 1.75 / player_height
     player.scale = Vector3.ONE * player_scale
     add_child(player)
-    _play_first_animation(player)
+    _play_matching_animation(player, ["idle", "general"])
 
 func _find_models_limited(root, limit):
     var result = []
@@ -348,7 +358,7 @@ func _build_package_rosters():
             valid_monsters.append(record)
 
     if valid_monsters.size() > 0:
-        var wanted = min(10, valid_monsters.size())
+        var wanted = min(8, valid_monsters.size())
         var i = 0
         while i < wanted:
             var sample_index = int(floor(float(i) * float(valid_monsters.size()) / float(wanted)))
@@ -373,25 +383,25 @@ func _spawn_ground_tile(index):
     var scale_value = target_footprint / footprint
     var column = index % 6
     var row = index / 6
-    item.position = Vector3((float(column) - 2.5) * 7.0, -0.08, (float(row) - 3.5) * 7.0)
+    item.position = Vector3((float(column) - 2.5) * 7.0, -0.08, (float(row) - 2.5) * 7.0)
     item.rotation.y = float((index + row) % 4) * PI * 0.5
     item.scale = Vector3.ONE * scale_value
     add_child(item)
 
 func _spawn_scenery_piece(index):
-    var use_tall = index < 28
+    var use_tall = index < 20
     var pool = decor_roster
-    var ring_index = index - 28
-    var divisor = 16
-    var radius = boot_rng.randf_range(9.0, 13.0)
+    var ring_index = index - 20
+    var divisor = 12
+    var radius = boot_rng.randf_range(8.0, 12.0)
     var target_height = boot_rng.randf_range(0.8, 1.8)
 
     if use_tall:
         pool = tall_roster
         ring_index = index
-        divisor = 28
-        radius = boot_rng.randf_range(13.5, 17.5)
-        target_height = boot_rng.randf_range(4.2, 6.2)
+        divisor = 20
+        radius = boot_rng.randf_range(12.5, 16.5)
+        target_height = boot_rng.randf_range(4.0, 6.0)
 
     if pool.size() == 0:
         return
@@ -416,7 +426,9 @@ func _start_wave():
     if monster_roster.size() == 0:
         status_label.text = "KEINE SICHTBAREN MONSTER-ASSETS"
         return
-    var count = min(16, 6 + wave * 2)
+    wave_pending = false
+    wave_delay = 0.0
+    var count = min(15, 6 + wave * 2)
     var i = 0
     while i < count:
         _spawn_enemy(i, count)
@@ -439,61 +451,118 @@ func _spawn_enemy(index, total):
         return
 
     var angle = TAU * float(index) / float(max(1, total))
-    var radius = 10.5 + fmod(float(index) * 1.63, 4.5)
+    var radius = 10.0 + fmod(float(index) * 1.47, 4.2)
     enemy.position = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
     enemy.rotation.y = angle + PI
 
     var source_height = max(0.01, float(record["height"]))
-    var target_height = 1.15 + float(index % 4) * 0.16
+    var target_height = 1.1 + float(index % 4) * 0.17
     var scale_value = target_height / source_height
     enemy.scale = Vector3.ONE * scale_value
     enemy.set_meta("base_scale", enemy.scale)
     enemy.set_meta("hp", 3 + wave)
     enemy.set_meta("speed", 1.35 + float(wave) * 0.07)
     enemy.set_meta("cooldown", 0.0)
+    enemy.set_meta("hit_time", 0.0)
+    enemy.set_meta("death_time", 0.0)
+    enemy.set_meta("knockback", Vector3.ZERO)
+    enemy.set_meta("alive", true)
     add_child(enemy)
     enemies.append(enemy)
-    _play_first_animation(enemy)
+    _play_matching_animation(enemy, ["walk", "run", "move", "idle"])
 
 func _update_player(delta):
     if player == null:
         return
+
     var keyboard = Input.get_vector("move_left", "move_right", "move_up", "move_down")
     var input_vec = move_input
     if move_input.length() <= 0.05:
         input_vec = keyboard
     var dir = Vector3(input_vec.x, 0.0, input_vec.y)
+
+    if player_attack_time > 0.0:
+        return
+
     if dir.length() > 0.05:
         dir = dir.normalized()
         player.position += dir * 5.5 * delta
         player.position.x = clamp(player.position.x, -12.0, 12.0)
         player.position.z = clamp(player.position.z, -15.0, 15.0)
         player.rotation.y = lerp_angle(player.rotation.y, atan2(dir.x, dir.z), min(1.0, delta * 12.0))
+        _play_matching_animation(player, ["walk", "run", "move"])
+    else:
+        _play_matching_animation(player, ["idle", "general"])
 
 func _update_enemies(delta):
     if player == null:
         return
+
     var copy = enemies.duplicate()
     for enemy in copy:
         if not is_instance_valid(enemy):
             enemies.erase(enemy)
             continue
+
+        var death_time = float(enemy.get_meta("death_time", 0.0))
+        if death_time > 0.0:
+            death_time = max(0.0, death_time - delta)
+            enemy.set_meta("death_time", death_time)
+            var knockback_death = enemy.get_meta("knockback", Vector3.ZERO)
+            enemy.position += knockback_death * delta
+            enemy.rotation.z += delta * 5.2
+            var death_ratio = death_time / 0.36
+            var base_scale_death = enemy.get_meta("base_scale", enemy.scale)
+            enemy.scale = base_scale_death * max(0.05, death_ratio)
+            if death_time <= 0.0:
+                enemies.erase(enemy)
+                enemy.queue_free()
+            continue
+
+        if not bool(enemy.get_meta("alive", true)):
+            continue
+
+        var hit_time = float(enemy.get_meta("hit_time", 0.0))
+        var knockback = enemy.get_meta("knockback", Vector3.ZERO)
+        if hit_time > 0.0:
+            hit_time = max(0.0, hit_time - delta)
+            enemy.set_meta("hit_time", hit_time)
+            enemy.position += knockback * delta
+            knockback = knockback.lerp(Vector3.ZERO, min(1.0, delta * 10.0))
+            enemy.set_meta("knockback", knockback)
+            if hit_time <= 0.0:
+                enemy.scale = enemy.get_meta("base_scale", enemy.scale)
+                _play_matching_animation(enemy, ["walk", "run", "move", "idle"])
+            continue
+
         var cooldown = max(0.0, float(enemy.get_meta("cooldown", 0.0)) - delta)
         enemy.set_meta("cooldown", cooldown)
         var offset = player.position - enemy.position
         offset.y = 0.0
+
         if offset.length() > 1.15:
             enemy.position += offset.normalized() * float(enemy.get_meta("speed", 1.5)) * delta
             enemy.rotation.y = lerp_angle(enemy.rotation.y, atan2(offset.x, offset.z), min(1.0, delta * 9.0))
+            _play_matching_animation(enemy, ["walk", "run", "move"])
         elif cooldown <= 0.0:
             enemy.set_meta("cooldown", 0.82)
+            _play_matching_animation(enemy, ["attack", "bite", "combat", "hit"])
             hp = max(0, hp - 5)
+            _kick_camera(0.10, 0.08)
             _refresh_hud()
 
 func _attack_nearest_enemy():
     var target = _nearest_enemy()
     if target == null or player == null:
         return
+
+    var offset = target.position - player.position
+    offset.y = 0.0
+    if offset.length() > 0.01:
+        player.rotation.y = atan2(offset.x, offset.z)
+
+    player_attack_time = 0.22
+    _play_matching_animation(player, ["spell", "cast", "attack", "ranged", "combat"])
     _hit_enemy(target)
 
 func _nearest_enemy():
@@ -502,7 +571,7 @@ func _nearest_enemy():
     var target = null
     var best = INF
     for enemy in enemies:
-        if is_instance_valid(enemy):
+        if is_instance_valid(enemy) and bool(enemy.get_meta("alive", true)):
             var distance = player.position.distance_squared_to(enemy.position)
             if distance < best:
                 best = distance
@@ -512,26 +581,69 @@ func _nearest_enemy():
 func _hit_enemy(enemy):
     if not is_instance_valid(enemy):
         return
+    if not bool(enemy.get_meta("alive", true)):
+        return
+
     var enemy_hp = int(enemy.get_meta("hp", 1)) - 1
     enemy.set_meta("hp", enemy_hp)
     var base_scale = enemy.get_meta("base_scale", enemy.scale)
-    enemy.scale = base_scale * 1.08
+    enemy.scale = base_scale * 1.14
+
+    var knock_direction = enemy.position - player.position
+    knock_direction.y = 0.0
+    if knock_direction.length() > 0.01:
+        knock_direction = knock_direction.normalized()
+    enemy.set_meta("knockback", knock_direction * 4.5)
+    enemy.set_meta("hit_time", 0.13)
+    _play_matching_animation(enemy, ["hit", "damage", "hurt"])
+    _kick_camera(0.07, 0.045)
+
     if enemy_hp <= 0:
-        enemies.erase(enemy)
+        enemy.set_meta("alive", false)
+        enemy.set_meta("hit_time", 0.0)
+        enemy.set_meta("death_time", 0.36)
+        enemy.set_meta("knockback", knock_direction * 6.0)
+        _play_matching_animation(enemy, ["death", "die", "dead"])
         score += 5
-        enemy.queue_free()
+        _kick_camera(0.11, 0.075)
         _refresh_hud()
-        if enemies.size() == 0:
-            wave += 1
-            _start_wave()
-    else:
-        enemy.scale = base_scale
+
+        if _living_enemy_count() == 0:
+            wave_pending = true
+            wave_delay = 0.8
+
+func _living_enemy_count():
+    var count = 0
+    for enemy in enemies:
+        if is_instance_valid(enemy) and bool(enemy.get_meta("alive", true)):
+            count += 1
+    return count
+
+func _update_wave_transition(delta):
+    if not wave_pending:
+        return
+    wave_delay -= delta
+    if wave_delay <= 0.0:
+        wave += 1
+        _start_wave()
 
 func _update_camera(delta):
     if player == null or camera == null:
         return
+
     var desired = player.position + Vector3(0.0, 18.2, 15.8)
     camera.position = camera.position.lerp(desired, min(1.0, delta * 5.0))
+
+    if camera_kick_time > 0.0:
+        camera.position += Vector3(
+            randf_range(-camera_kick_strength, camera_kick_strength),
+            randf_range(-camera_kick_strength, camera_kick_strength),
+            0.0
+        )
+
+func _kick_camera(duration, strength):
+    camera_kick_time = max(camera_kick_time, duration)
+    camera_kick_strength = strength
 
 func _refresh_hud():
     if wave_label != null:
@@ -541,11 +653,19 @@ func _refresh_hud():
     if hp_bar != null:
         hp_bar.value = hp
 
-func _play_first_animation(root):
+func _play_matching_animation(root, keywords):
     var players = root.find_children("*", "AnimationPlayer", true, false)
     if players.size() == 0:
-        return
+        return false
+
     var animation_player = players[0]
     var names = animation_player.get_animation_list()
-    if names.size() > 0:
-        animation_player.play(names[0])
+    for keyword in keywords:
+        var wanted = str(keyword).to_lower()
+        for animation_name in names:
+            var animation_text = str(animation_name)
+            if animation_text.to_lower().contains(wanted):
+                if animation_player.current_animation != animation_name:
+                    animation_player.play(animation_name)
+                return true
+    return false
