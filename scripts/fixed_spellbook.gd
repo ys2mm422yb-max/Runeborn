@@ -34,17 +34,17 @@ func _process(delta):
 
     var side = mage.global_transform.basis.x.normalized()
     var forward = -mage.global_transform.basis.z.normalized()
-    var bob = sin(float_time * 3.0) * 0.06
-    var desired = mage.global_position + side * 0.82 + Vector3(0.0, 0.92 + bob, 0.0)
-    desired += forward * cast_push * 0.52
+    var bob = sin(float_time * 3.0) * 0.04
+    var desired = mage.global_position + side * 0.58 + Vector3(0.0, 0.64 + bob, 0.0)
+    desired += forward * cast_push * 0.38
 
     global_position = global_position.lerp(desired, min(1.0, delta * 12.0))
     rotation.y = lerp_angle(rotation.y, mage.rotation.y + 0.35 + cast_push * 0.45, min(1.0, delta * 10.0))
     rotation.z = -0.18 + sin(float_time * 2.2) * 0.04
 
     if rune_light != null:
-        rune_light.light_energy = 0.85 + sin(float_time * 3.7) * 0.10 + cast_push * 1.8
-        rune_light.omni_range = 2.6 + cast_push * 1.0
+        rune_light.light_energy = 0.55 + sin(float_time * 3.7) * 0.08 + cast_push * 1.25
+        rune_light.omni_range = 1.9 + cast_push * 0.8
 
 func _spawn_book():
     var packed = load(SPELLBOOK_SCENE)
@@ -55,14 +55,14 @@ func _spawn_book():
     if book == null:
         push_error("SPELLBOOK INSTANCE FAILED")
         return
-    book.scale = Vector3.ONE * 0.72
+    book.scale = Vector3.ONE * 0.42
     book.rotation_degrees = Vector3(-12.0, 0.0, -8.0)
     add_child(book)
 
 func _spawn_light():
     rune_light = OmniLight3D.new()
     rune_light.light_color = Color("9d66ff")
-    rune_light.light_energy = 0.85
-    rune_light.omni_range = 2.6
+    rune_light.light_energy = 0.55
+    rune_light.omni_range = 1.9
     rune_light.shadow_enabled = false
     add_child(rune_light)
