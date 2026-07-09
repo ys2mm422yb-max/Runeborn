@@ -68,8 +68,10 @@ func _input(event):
 
 func _boot_step():
     if boot_state == 1:
-        monster_paths = _find_models_limited(MONSTER_ROOT, 80)
-        nature_paths = _find_models_limited(NATURE_ROOT, 120)
+        var all_monsters = _find_models_limited(MONSTER_ROOT, 500)
+        var all_nature = _find_models_limited(NATURE_ROOT, 1400)
+        monster_paths = _sample_paths(all_monsters, 64)
+        nature_paths = _sample_paths(all_nature, 140)
         boot_index = 0
         boot_state = 2
         status_label.text = "NATURE-ASSETS WERDEN VALIDiert ..."
@@ -249,8 +251,23 @@ func _scan_dir(path, result, limit):
     dir.list_dir_end()
     return false
 
+func _sample_paths(source, wanted):
+    var sampled = []
+    if source.size() == 0:
+        return sampled
+    var sample_count = min(wanted, source.size())
+    var i = 0
+    while i < sample_count:
+        var sample_index = int(floor(float(i) * float(source.size()) / float(sample_count)))
+        sample_index = clamp(sample_index, 0, source.size() - 1)
+        var path = source[sample_index]
+        if not sampled.has(path):
+            sampled.append(path)
+        i += 1
+    return sampled
+
 func _inspect_model(path):
-    var packed = load(path)
+    var packed = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
     if packed == null:
         return null
     var instance = packed.instantiate()
@@ -262,6 +279,7 @@ func _inspect_model(path):
         return null
     var size = _measure_instance(instance)
     instance.free()
+    packed = null
     if size.x <= 0.001 or size.y <= 0.001 or size.z <= 0.001:
         return null
     return {
@@ -362,7 +380,19 @@ func _spawn_ground_tile(index):
 
 func _spawn_scenery_piece(index):
     var use_tall = index < 28
-    var pool = tall_roster if use_tall else decor_roster
+    var pool = decor_roster
+    var ring_index = index - 28
+    var divisor = 16
+    var radius = boot_rng.randf_range(9.0, 13.0)
+    var target_height = boot_rng.randf_range(0.8, 1.8)
+
+    if use_tall:
+        pool = tall_roster
+        ring_index = index
+        divisor = 28
+        radius = boot_rng.randf_range(13.5, 17.5)
+        target_height = boot_rng.randf_range(4.2, 6.2)
+
     if pool.size() == 0:
         return
     var record = pool[index % pool.size()]
@@ -373,15 +403,12 @@ func _spawn_scenery_piece(index):
     if item == null:
         return
 
-    var ring_index = index if use_tall else index - 28
-    var angle = TAU * float(ring_index) / float(28 if use_tall else 16)
+    var angle = TAU * float(ring_index) / float(divisor)
     angle += boot_rng.randf_range(-0.08, 0.08)
-    var radius = boot_rng.randf_range(13.5, 17.5) if use_tall else boot_rng.randf_range(9.0, 13.0)
     item.position = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
     item.rotation.y = boot_rng.randf_range(0.0, TAU)
 
     var source_height = max(0.01, float(record["height"]))
-    var target_height = boot_rng.randf_range(4.2, 6.2) if use_tall else boot_rng.randf_range(0.8, 1.8)
     item.scale = Vector3.ONE * (target_height / source_height)
     add_child(item)
 
