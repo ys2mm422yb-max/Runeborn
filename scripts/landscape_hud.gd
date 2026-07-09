@@ -35,7 +35,7 @@ func _process(delta):
     hit_pulse = max(0.0, hit_pulse - delta * 5.5)
 
     hp_label.text = "%03d / 100" % current_hp
-    score_label.text = "RUNES  %05d" % current_score
+    score_label.text = "RUNES   %05d" % current_score
     hp_bar.value = current_hp
 
     var pulse_scale = 1.0 + sin(hit_pulse * PI) * 0.06
@@ -56,36 +56,37 @@ func _build_hud():
     left_panel = TextureRect.new()
     left_panel.anchor_left = 0.0
     left_panel.anchor_top = 0.0
-    left_panel.offset_left = 34.0
-    left_panel.offset_top = 30.0
-    left_panel.offset_right = 404.0
-    left_panel.offset_bottom = 172.0
-    left_panel.pivot_offset = Vector2(185.0, 71.0)
+    left_panel.offset_left = 46.0
+    left_panel.offset_top = 38.0
+    left_panel.offset_right = 566.0
+    left_panel.offset_bottom = 220.0
+    left_panel.pivot_offset = Vector2(260.0, 91.0)
     left_panel.texture = load(PANEL_TEX)
     left_panel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     left_panel.stretch_mode = TextureRect.STRETCH_SCALE
-    left_panel.modulate = Color(0.46, 0.34, 0.68, 0.94)
+    left_panel.modulate = Color(0.42, 0.28, 0.64, 0.98)
+    left_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
     root.add_child(left_panel)
 
     var title = Label.new()
-    title.position = Vector2(34.0, 18.0)
-    title.size = Vector2(300.0, 40.0)
+    title.position = Vector2(48.0, 24.0)
+    title.size = Vector2(420.0, 50.0)
     title.text = "RUNEBORN"
-    title.add_theme_font_size_override("font_size", 28)
+    title.add_theme_font_size_override("font_size", 34)
     title.add_theme_color_override("font_color", Color("fff8ff"))
     left_panel.add_child(title)
 
     var hp_title = Label.new()
-    hp_title.position = Vector2(34.0, 62.0)
-    hp_title.size = Vector2(76.0, 28.0)
+    hp_title.position = Vector2(48.0, 82.0)
+    hp_title.size = Vector2(70.0, 38.0)
     hp_title.text = "HP"
-    hp_title.add_theme_font_size_override("font_size", 18)
+    hp_title.add_theme_font_size_override("font_size", 24)
     hp_title.add_theme_color_override("font_color", Color("eadcff"))
     left_panel.add_child(hp_title)
 
     hp_bar = ProgressBar.new()
-    hp_bar.position = Vector2(78.0, 64.0)
-    hp_bar.size = Vector2(176.0, 22.0)
+    hp_bar.position = Vector2(112.0, 86.0)
+    hp_bar.size = Vector2(230.0, 28.0)
     hp_bar.min_value = 0.0
     hp_bar.max_value = 100.0
     hp_bar.value = 100.0
@@ -93,39 +94,40 @@ func _build_hud():
     left_panel.add_child(hp_bar)
 
     hp_label = Label.new()
-    hp_label.position = Vector2(260.0, 60.0)
-    hp_label.size = Vector2(90.0, 30.0)
+    hp_label.position = Vector2(354.0, 80.0)
+    hp_label.size = Vector2(124.0, 42.0)
     hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-    hp_label.add_theme_font_size_override("font_size", 17)
+    hp_label.add_theme_font_size_override("font_size", 23)
     hp_label.add_theme_color_override("font_color", Color("fff4ff"))
     left_panel.add_child(hp_label)
 
     score_label = Label.new()
-    score_label.position = Vector2(34.0, 96.0)
-    score_label.size = Vector2(316.0, 28.0)
-    score_label.add_theme_font_size_override("font_size", 17)
-    score_label.add_theme_color_override("font_color", Color("ddcff3"))
+    score_label.position = Vector2(48.0, 132.0)
+    score_label.size = Vector2(430.0, 38.0)
+    score_label.add_theme_font_size_override("font_size", 23)
+    score_label.add_theme_color_override("font_color", Color("e8dcf7"))
     left_panel.add_child(score_label)
 
     wave_panel = TextureRect.new()
     wave_panel.anchor_left = 0.5
     wave_panel.anchor_top = 0.0
     wave_panel.anchor_right = 0.5
-    wave_panel.offset_left = -150.0
-    wave_panel.offset_top = 30.0
-    wave_panel.offset_right = 150.0
-    wave_panel.offset_bottom = 112.0
-    wave_panel.pivot_offset = Vector2(150.0, 41.0)
+    wave_panel.offset_left = -190.0
+    wave_panel.offset_top = 38.0
+    wave_panel.offset_right = 190.0
+    wave_panel.offset_bottom = 154.0
+    wave_panel.pivot_offset = Vector2(190.0, 58.0)
     wave_panel.texture = load(BORDER_TEX)
     wave_panel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     wave_panel.stretch_mode = TextureRect.STRETCH_SCALE
-    wave_panel.modulate = Color(0.56, 0.40, 0.80, 0.94)
+    wave_panel.modulate = Color(0.54, 0.36, 0.80, 0.98)
+    wave_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
     root.add_child(wave_panel)
 
     wave_label = Label.new()
     wave_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     wave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     wave_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-    wave_label.add_theme_font_size_override("font_size", 27)
+    wave_label.add_theme_font_size_override("font_size", 34)
     wave_label.add_theme_color_override("font_color", Color("fff8ff"))
     wave_panel.add_child(wave_label)
