@@ -10,6 +10,7 @@ var mage = null
 var focus = null
 var last_attack_time = 0.0
 var effects = []
+var known_enemy_ids = {}
 
 func _ready():
     game = get_parent()
@@ -23,11 +24,35 @@ func _process(delta):
     if focus == null or not is_instance_valid(focus):
         focus = game.get_node_or_null("SpellbookFocus")
 
+    _scan_new_enemies()
+
     var attack_time = float(game.get("player_attack_time"))
     if attack_time > 0.0 and last_attack_time <= 0.0:
         _spawn_cast()
     last_attack_time = attack_time
     _update_effects(delta)
+
+func _scan_new_enemies():
+    var enemy_list = game.get("enemies")
+    for enemy in enemy_list:
+        if is_instance_valid(enemy) and bool(enemy.get_meta("alive", true)):
+            var enemy_id = enemy.get_instance_id()
+            if not known_enemy_ids.has(enemy_id):
+                known_enemy_ids[enemy_id] = true
+                _spawn_enemy_arrival(enemy)
+
+func _spawn_enemy_arrival(enemy):
+    var position = enemy.global_position + Vector3(0.0, 0.6, 0.0)
+
+    var arrival_magic = _make_sprite(MAGIC_TEX, Color(0.46, 0.31, 0.72, 0.88), 0.0044)
+    arrival_magic.global_position = position
+    add_child(arrival_magic)
+    effects.append({"node": arrival_magic, "kind": "pulse", "life": 0.48, "max_life": 0.48})
+
+    var arrival_circle = _make_sprite(CIRCLE_TEX, Color(0.36, 0.24, 0.62, 0.78), 0.0040)
+    arrival_circle.global_position = position
+    add_child(arrival_circle)
+    effects.append({"node": arrival_circle, "kind": "impact", "life": 0.42, "max_life": 0.42})
 
 func _spawn_cast():
     if mage == null:
