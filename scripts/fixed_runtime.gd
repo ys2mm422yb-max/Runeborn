@@ -2,6 +2,7 @@ extends Node3D
 
 const MAGE_SCENE = "res://assets/characters/03_Characters/KayKit_Adventurers_2.0_FREE/Characters/gltf/Mage.glb"
 
+const FLOOR_DIRT = "res://assets/ruins/07_Ruins/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/floor_dirt_large.gltf"
 const TREE_A = "res://assets/nature/01_Nature/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/Tree_2_A_Color1.gltf"
 const TREE_B = "res://assets/nature/01_Nature/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/Tree_3_B_Color1.gltf"
 const ROCK_A = "res://assets/nature/01_Nature/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/Rock_2_A_Color1.gltf"
@@ -35,6 +36,7 @@ var wave_delay = -1.0
 
 func _ready():
     _build_environment()
+    _build_package_floor()
     _build_fixed_forest()
     _spawn_player()
     _spawn_wave()
@@ -72,89 +74,93 @@ func _build_environment():
     var world_environment = WorldEnvironment.new()
     var environment = Environment.new()
     environment.background_mode = Environment.BG_COLOR
-    environment.background_color = Color("31443c")
+    environment.background_color = Color("24342e")
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color("b8c9bd")
-    environment.ambient_light_energy = 0.72
+    environment.ambient_light_color = Color("bac8bb")
+    environment.ambient_light_energy = 0.68
     environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
     world_environment.environment = environment
     add_child(world_environment)
 
     var sun = DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
-    sun.light_color = Color("ffe1ad")
-    sun.light_energy = 1.7
+    sun.rotation_degrees = Vector3(-50.0, -32.0, 0.0)
+    sun.light_color = Color("ffdca7")
+    sun.light_energy = 1.55
     sun.shadow_enabled = true
     add_child(sun)
 
     var fill = DirectionalLight3D.new()
-    fill.rotation_degrees = Vector3(-38.0, 150.0, 0.0)
-    fill.light_color = Color("9db6cb")
-    fill.light_energy = 0.32
+    fill.rotation_degrees = Vector3(-34.0, 145.0, 0.0)
+    fill.light_color = Color("a6bed0")
+    fill.light_energy = 0.28
     fill.shadow_enabled = false
     add_child(fill)
 
     camera = Camera3D.new()
-    camera.position = Vector3(0.0, 13.8, 10.8)
+    camera.position = Vector3(0.0, 10.8, 8.2)
     camera.rotation_degrees = Vector3(-52.0, 0.0, 0.0)
-    camera.fov = 48.0
+    camera.fov = 44.0
     camera.current = true
     add_child(camera)
 
-func _build_fixed_forest():
-    var grass_positions = [
-        Vector3(-8, 0, -12), Vector3(-4, 0, -12), Vector3(0, 0, -12), Vector3(4, 0, -12), Vector3(8, 0, -12),
-        Vector3(-8, 0, -8), Vector3(-4, 0, -8), Vector3(0, 0, -8), Vector3(4, 0, -8), Vector3(8, 0, -8),
-        Vector3(-8, 0, -4), Vector3(-4, 0, -4), Vector3(0, 0, -4), Vector3(4, 0, -4), Vector3(8, 0, -4),
-        Vector3(-8, 0, 0), Vector3(-4, 0, 0), Vector3(0, 0, 0), Vector3(4, 0, 0), Vector3(8, 0, 0),
-        Vector3(-8, 0, 4), Vector3(-4, 0, 4), Vector3(0, 0, 4), Vector3(4, 0, 4), Vector3(8, 0, 4),
-        Vector3(-8, 0, 8), Vector3(-4, 0, 8), Vector3(0, 0, 8), Vector3(4, 0, 8), Vector3(8, 0, 8),
-        Vector3(-8, 0, 12), Vector3(-4, 0, 12), Vector3(0, 0, 12), Vector3(4, 0, 12), Vector3(8, 0, 12)
-    ]
-    for position in grass_positions:
-        _spawn_asset(GRASS_A, position, 2.6, 0.0)
+func _build_package_floor():
+    for x in [-8.0, -4.0, 0.0, 4.0, 8.0]:
+        for z in [-12.0, -8.0, -4.0, 0.0, 4.0, 8.0, 12.0]:
+            _spawn_asset(FLOOR_DIRT, Vector3(x, 0.0, z), 1.0, 0.0)
 
+func _build_fixed_forest():
     var tree_layout = [
-        [TREE_A, Vector3(-11.5, 0, -12.5), 1.45, 0.2],
-        [TREE_B, Vector3(-7.5, 0, -14.0), 1.55, 1.1],
-        [TREE_A, Vector3(-2.5, 0, -15.2), 1.38, 2.2],
-        [TREE_B, Vector3(3.2, 0, -15.0), 1.62, 0.6],
-        [TREE_A, Vector3(8.0, 0, -13.7), 1.48, 1.8],
-        [TREE_B, Vector3(11.5, 0, -10.5), 1.55, 2.7],
-        [TREE_A, Vector3(12.5, 0, -5.0), 1.42, 0.9],
-        [TREE_B, Vector3(12.8, 0, 1.0), 1.60, 2.1],
-        [TREE_A, Vector3(11.8, 0, 7.0), 1.50, 0.4],
-        [TREE_B, Vector3(8.5, 0, 12.7), 1.58, 1.5],
-        [TREE_A, Vector3(3.0, 0, 14.5), 1.45, 2.4],
-        [TREE_B, Vector3(-3.0, 0, 14.5), 1.62, 0.8],
-        [TREE_A, Vector3(-8.5, 0, 12.5), 1.50, 1.9],
-        [TREE_B, Vector3(-11.7, 0, 7.0), 1.55, 2.8],
-        [TREE_A, Vector3(-12.8, 0, 1.0), 1.42, 1.2],
-        [TREE_B, Vector3(-12.5, 0, -5.2), 1.60, 2.3]
+        [TREE_A, Vector3(-10.8, 0, -13.0), 1.35, 0.2],
+        [TREE_B, Vector3(-6.8, 0, -14.2), 1.48, 1.1],
+        [TREE_A, Vector3(-1.8, 0, -15.0), 1.30, 2.2],
+        [TREE_B, Vector3(3.5, 0, -14.8), 1.52, 0.6],
+        [TREE_A, Vector3(8.2, 0, -13.4), 1.38, 1.8],
+        [TREE_B, Vector3(11.2, 0, -9.7), 1.50, 2.7],
+        [TREE_A, Vector3(12.0, 0, -4.2), 1.34, 0.9],
+        [TREE_B, Vector3(12.2, 0, 1.8), 1.48, 2.1],
+        [TREE_A, Vector3(11.2, 0, 7.5), 1.38, 0.4],
+        [TREE_B, Vector3(8.0, 0, 12.4), 1.50, 1.5],
+        [TREE_A, Vector3(2.8, 0, 14.0), 1.34, 2.4],
+        [TREE_B, Vector3(-3.2, 0, 14.2), 1.50, 0.8],
+        [TREE_A, Vector3(-8.2, 0, 12.0), 1.38, 1.9],
+        [TREE_B, Vector3(-11.2, 0, 7.2), 1.46, 2.8],
+        [TREE_A, Vector3(-12.0, 0, 1.0), 1.32, 1.2],
+        [TREE_B, Vector3(-11.8, 0, -5.0), 1.48, 2.3]
     ]
     for entry in tree_layout:
         _spawn_asset(entry[0], entry[1], entry[2], entry[3])
 
     var rock_layout = [
-        [ROCK_A, Vector3(-8.2, 0, -7.0), 1.2, 0.4],
-        [ROCK_B, Vector3(7.5, 0, -8.0), 1.0, 1.7],
-        [ROCK_A, Vector3(9.2, 0, 5.5), 1.35, 2.6],
-        [ROCK_B, Vector3(-9.0, 0, 6.5), 1.15, 0.9],
-        [ROCK_A, Vector3(-5.5, 0, 10.0), 0.95, 2.2],
-        [ROCK_B, Vector3(5.0, 0, 10.5), 1.1, 1.3]
+        [ROCK_A, Vector3(-8.0, 0, -8.5), 1.10, 0.4],
+        [ROCK_B, Vector3(7.8, 0, -9.0), 0.95, 1.7],
+        [ROCK_A, Vector3(8.8, 0, 6.8), 1.22, 2.6],
+        [ROCK_B, Vector3(-8.8, 0, 7.5), 1.05, 0.9],
+        [ROCK_A, Vector3(-5.8, 0, 11.0), 0.90, 2.2],
+        [ROCK_B, Vector3(5.4, 0, 11.2), 1.00, 1.3]
     ]
     for entry in rock_layout:
         _spawn_asset(entry[0], entry[1], entry[2], entry[3])
 
     var bush_positions = [
-        Vector3(-10.5, 0, -9.0), Vector3(-5.0, 0, -12.0), Vector3(5.5, 0, -12.5), Vector3(10.0, 0, -8.0),
-        Vector3(10.5, 0, 2.5), Vector3(8.5, 0, 9.5), Vector3(0.5, 0, 12.5), Vector3(-7.5, 0, 10.0),
-        Vector3(-10.5, 0, 3.5), Vector3(-8.5, 0, -2.5)
+        Vector3(-9.8, 0, -10.3), Vector3(-4.2, 0, -12.2), Vector3(5.0, 0, -12.0), Vector3(9.5, 0, -8.2),
+        Vector3(10.0, 0, 3.0), Vector3(8.2, 0, 9.6), Vector3(0.8, 0, 12.0), Vector3(-7.2, 0, 10.0),
+        Vector3(-10.0, 0, 3.8), Vector3(-9.4, 0, -2.8)
     ]
-    var index = 0
+    var bush_index = 0
     for position in bush_positions:
-        _spawn_asset(BUSH_A, position, 1.25 + float(index % 3) * 0.14, float(index) * 0.61)
-        index += 1
+        _spawn_asset(BUSH_A, position, 1.08 + float(bush_index % 3) * 0.12, float(bush_index) * 0.61)
+        bush_index += 1
+
+    var grass_layout = [
+        Vector3(-7.0, 0.02, -10.0), Vector3(-3.5, 0.02, -11.0), Vector3(3.0, 0.02, -10.5), Vector3(6.5, 0.02, -9.5),
+        Vector3(8.0, 0.02, -3.5), Vector3(8.2, 0.02, 3.5), Vector3(6.2, 0.02, 8.5), Vector3(2.5, 0.02, 10.0),
+        Vector3(-2.5, 0.02, 10.0), Vector3(-6.5, 0.02, 8.5), Vector3(-8.0, 0.02, 3.2), Vector3(-8.0, 0.02, -3.5),
+        Vector3(-5.2, 0.02, -6.8), Vector3(5.4, 0.02, -6.5), Vector3(5.8, 0.02, 6.0), Vector3(-5.8, 0.02, 6.2)
+    ]
+    var grass_index = 0
+    for position in grass_layout:
+        _spawn_asset(GRASS_A, position, 1.15 + float(grass_index % 4) * 0.08, float(grass_index) * 0.73)
+        grass_index += 1
 
 func _spawn_asset(path, position, scale_value, rotation_y):
     var packed = load(path)
@@ -178,13 +184,13 @@ func _spawn_player():
         return
     player = packed.instantiate()
     player.name = "RunebornMage"
-    player.scale = Vector3.ONE * 0.82
+    player.scale = Vector3.ONE
     player.position = Vector3.ZERO
     add_child(player)
     _play_animation(player, ["idle"])
 
 func _spawn_wave():
-    var count = min(12, 5 + wave)
+    var count = min(10, 4 + wave)
     for index in range(count):
         var path = MONSTER_SCENES[index % MONSTER_SCENES.size()]
         var packed = load(path)
@@ -196,12 +202,12 @@ func _spawn_wave():
             push_error("MONSTER INSTANCE FAILED: " + path)
             continue
         var angle = TAU * float(index) / float(count)
-        var radius = 8.5 + float(index % 3) * 1.25
+        var radius = 8.2 + float(index % 2) * 1.1
         enemy.position = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
         enemy.rotation.y = angle + PI
-        enemy.scale = Vector3.ONE * 0.88
+        enemy.scale = Vector3.ONE * 0.95
         enemy.set_meta("hp", 3 + wave)
-        enemy.set_meta("speed", 1.45 + float(wave) * 0.06)
+        enemy.set_meta("speed", 1.35 + float(wave) * 0.05)
         enemy.set_meta("cooldown", 0.0)
         enemy.set_meta("alive", true)
         add_child(enemy)
@@ -216,9 +222,9 @@ func _update_player(delta):
     var direction = Vector3(input_vec.x, 0.0, input_vec.y)
     if direction.length() > 0.05:
         direction = direction.normalized()
-        player.position += direction * 5.0 * delta
-        player.position.x = clamp(player.position.x, -8.5, 8.5)
-        player.position.z = clamp(player.position.z, -11.0, 11.0)
+        player.position += direction * 4.7 * delta
+        player.position.x = clamp(player.position.x, -7.5, 7.5)
+        player.position.z = clamp(player.position.z, -10.5, 10.5)
         player.rotation.y = lerp_angle(player.rotation.y, atan2(direction.x, direction.z), min(1.0, delta * 12.0))
         _play_animation(player, ["walk", "run"])
     else:
@@ -238,12 +244,12 @@ func _update_enemies(delta):
         offset.y = 0.0
         var cooldown = max(0.0, float(enemy.get_meta("cooldown", 0.0)) - delta)
         enemy.set_meta("cooldown", cooldown)
-        if offset.length() > 1.0:
+        if offset.length() > 1.1:
             enemy.position += offset.normalized() * float(enemy.get_meta("speed", 1.5)) * delta
             enemy.rotation.y = lerp_angle(enemy.rotation.y, atan2(offset.x, offset.z), min(1.0, delta * 9.0))
             _play_animation(enemy, ["walk", "run"])
         elif cooldown <= 0.0:
-            enemy.set_meta("cooldown", 0.9)
+            enemy.set_meta("cooldown", 0.95)
             hp = max(0, hp - 5)
             _play_animation(enemy, ["attack", "combat"])
 
@@ -258,7 +264,7 @@ func _attack_nearest():
             if distance < best_distance:
                 best_distance = distance
                 target = enemy
-    if target == null:
+    if target == null or best_distance > 42.25:
         return
     var offset = target.position - player.position
     offset.y = 0.0
@@ -286,8 +292,8 @@ func _living_enemy_count():
 func _update_camera(delta):
     if player == null or camera == null:
         return
-    var desired = player.position + Vector3(0.0, 13.8, 10.8)
-    camera.position = camera.position.lerp(desired, min(1.0, delta * 5.5))
+    var desired = player.position + Vector3(0.0, 10.8, 8.2)
+    camera.position = camera.position.lerp(desired, min(1.0, delta * 6.0))
 
 func _play_animation(root, keywords):
     var players = root.find_children("*", "AnimationPlayer", true, false)
