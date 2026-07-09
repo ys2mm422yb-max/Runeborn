@@ -36,6 +36,9 @@ var wave_delay = -1.0
 var player_hit_pulse = 0.0
 var camera_shake = 0.0
 var player_hit_serial = 0
+var player_attack_serial = 0
+var cast_camera_pull = 0.0
+var cast_target = null
 
 func _ready():
     _build_environment()
@@ -202,12 +205,15 @@ func _spawn_wave():
         enemy.rotation.y = angle + PI
         enemy.scale = Vector3.ONE * _role_scale(role)
         enemy.set_meta("role", role)
+        enemy.set_meta("base_scale", enemy.scale)
         enemy.set_meta("hp", _role_hp(role))
         enemy.set_meta("speed", _role_speed(role))
         enemy.set_meta("cooldown", 0.25 + float(index % 4) * 0.12)
         enemy.set_meta("alive", true)
         enemy.set_meta("stagger", 0.0)
+        enemy.set_meta("hit_punch", 0.0)
         enemy.set_meta("death_time", 0.0)
+        enemy.set_meta("windup", 0.0)
         enemy.set_meta("knockback", Vector3.ZERO)
         enemy.set_meta("orbit_sign", -1.0 if index % 2 == 0 else 1.0)
         enemy.set_meta("attack_serial", 0)
@@ -245,7 +251,7 @@ func _role_hp(role):
 
 func _role_speed(role):
     if role == "rogue":
-        return 2.05 + float(wave) * 0.05
+        return 1.78 + float(wave) * 0.045
     if role == "warrior":
         return 0.95 + float(wave) * 0.035
     if role == "mage":
@@ -277,13 +283,43 @@ func _update_enemies(delta):
             enemies.erase(enemy)
             continue
 
+        var base_scale = enemy.get_meta("base_scale", enemy.scale)
+
         if not bool(enemy.get_meta("alive", true)):
-            var death_time = float(enemy.get_meta("death_time", 0.0)) - delta
+            var death_time = max(0.0, float(enemy.get_meta("death_time", 0.0)) - delta)
             enemy.set_meta("death_time", death_time)
+            var death_ratio = death_time / 0.72
+            enemy.rotation.z += delta * 4.8
+            enemy.scale = base_scale * max(0.05, death_ratio)
             if death_time <= 0.0:
                 enemies.erase(enemy)
                 enemy.queue_free()
             continue
+
+        var windup = max(0.0, float(enemy.get_meta("windup", 0.0)) - delta)
+        if windup > 0.0:
+            enemy.set_meta("windup", windup)
+            var windup_ratio = windup / 0.38
+            enemy.scale = base_scale * (1.0 + (1.0 - windup_ratio) * 0.12)
+            var face_offset = player.position - enemy.position
+            face_offset.y = 0.0
+            if face_offset.length() > 0.01:
+                enemy.rotation.y = lerp_angle(enemy.rotation.y, atan2(face_offset.x, face_offset.z), min(1.0, delta * 14.0))
+            if windup <= delta:
+                enemy.scale = base_scale
+                _apply_player_damage(_role_damage("warrior"), "warrior")
+            continue
+        enemy.set_meta("windup", 0.0)
+
+        var hit_punch = max(0.0, float(enemy.get_meta("hit_punch", 0.0)) - delta * 6.8)
+        enemy.set_meta("hit_punch", hit_punch)
+        if hit_punch > 0.0:
+            var punch = sin(hit_punch * PI)
+            enemy.scale = base_scale * (1.0 + punch * 0.16)
+            enemy.rotation.z = lerp(enemy.rotation.z, float(enemy.get_meta("orbit_sign", 1.0)) * punch * 0.16, min(1.0, delta * 20.0))
+        else:
+            enemy.scale = enemy.scale.lerp(base_scale, min(1.0, delta * 16.0))
+            enemy.rotation.z = lerp(enemy.rotation.z, 0.0, min(1.0, delta * 14.0))
 
         var stagger = max(0.0, float(enemy.get_meta("stagger", 0.0)) - delta)
         enemy.set_meta("stagger", stagger)
@@ -317,9 +353,12 @@ func _update_enemies(delta):
 
         if distance <= attack_range and cooldown <= 0.0:
             enemy.set_meta("cooldown", _role_attack_cooldown(role))
-            enemy.set_meta("attack_serial", int(enemy.get_meta("attack_serial", 0)) + 1)
             _play_animation(enemy, ["attack", "combat"])
-            if role != "mage":
+            if role == "warrior":
+                enemy.set_meta("windup", 0.38)
+            elif role == "mage":
+                enemy.set_meta("attack_serial", int(enemy.get_meta("attack_serial", 0)) + 1)
+            else:
                 _apply_player_damage(_role_damage(role), role)
 
 func _role_movement(enemy, role, offset, distance):
@@ -327,9 +366,11 @@ func _role_movement(enemy, role, offset, distance):
     var tangent = Vector3(-toward.z, 0.0, toward.x) * float(enemy.get_meta("orbit_sign", 1.0))
 
     if role == "rogue":
-        if distance > 2.1:
-            return (toward * 0.72 + tangent * 0.78).normalized()
-        return tangent
+        if distance > 2.4:
+            return (toward * 0.86 + tangent * 0.42).normalized()
+        if distance < 1.45:
+            return (-toward * 0.25 + tangent * 0.75).normalized()
+        return (toward * 0.18 + tangent * 0.82).normalized()
     if role == "warrior":
         if distance > 1.35:
             return toward
@@ -355,9 +396,9 @@ func _role_attack_range(role):
 
 func _role_attack_cooldown(role):
     if role == "warrior":
-        return 1.45
+        return 1.55
     if role == "rogue":
-        return 0.70
+        return 0.78
     if role == "mage":
         return 1.35
     return 0.92
@@ -381,6 +422,31 @@ func _apply_player_damage(amount, source_role = "minion"):
         camera_shake = max(camera_shake, 0.26)
     else:
         camera_shake = max(camera_shake, 0.18)
+
+func _apply_enemy_hit(target, amount = 1):
+    if target == null or not is_instance_valid(target):
+        return
+    if not bool(target.get_meta("alive", true)):
+        return
+
+    var offset = target.position - player.position
+    offset.y = 0.0
+    var enemy_hp = int(target.get_meta("hp", 1)) - int(amount)
+    target.set_meta("hp", enemy_hp)
+    target.set_meta("stagger", 0.20)
+    target.set_meta("hit_punch", 1.0)
+    if offset.length() > 0.01:
+        target.set_meta("knockback", offset.normalized() * 4.8)
+    camera_shake = max(camera_shake, 0.09)
+
+    if enemy_hp <= 0:
+        target.set_meta("alive", false)
+        target.set_meta("death_time", 0.72)
+        target.set_meta("knockback", offset.normalized() * 2.8 if offset.length() > 0.01 else Vector3.ZERO)
+        score += 5
+        _play_animation(target, ["death", "die"])
+        if _living_enemy_count() == 0:
+            wave_delay = 1.15
 
 func _update_player_hit_state(delta):
     if player == null:
@@ -411,21 +477,9 @@ func _attack_nearest():
     if offset.length() > 0.01:
         player.rotation.y = atan2(offset.x, offset.z)
     _play_animation(player, ["attack", "cast", "spell"])
-
-    var enemy_hp = int(target.get_meta("hp", 1)) - 1
-    target.set_meta("hp", enemy_hp)
-    target.set_meta("stagger", 0.18)
-    if offset.length() > 0.01:
-        target.set_meta("knockback", offset.normalized() * 4.8)
-
-    if enemy_hp <= 0:
-        target.set_meta("alive", false)
-        target.set_meta("death_time", 0.72)
-        target.set_meta("knockback", offset.normalized() * 2.8 if offset.length() > 0.01 else Vector3.ZERO)
-        score += 5
-        _play_animation(target, ["death", "die"])
-        if _living_enemy_count() == 0:
-            wave_delay = 1.15
+    player_attack_serial += 1
+    cast_camera_pull = 1.0
+    cast_target = target
 
 func _living_enemy_count():
     var count = 0
@@ -437,14 +491,24 @@ func _living_enemy_count():
 func _update_camera(delta):
     if player == null or camera == null:
         return
+
     camera_shake = max(0.0, camera_shake - delta * 1.8)
+    cast_camera_pull = max(0.0, cast_camera_pull - delta * 4.5)
+
     var shake = Vector3.ZERO
     if camera_shake > 0.0:
         var ticks = float(Time.get_ticks_msec()) * 0.001
         shake.x = sin(ticks * 63.0) * camera_shake * 0.42
         shake.y = sin(ticks * 79.0) * camera_shake * 0.24
         shake.z = cos(ticks * 57.0) * camera_shake * 0.30
-    var desired = player.position + Vector3(0.0, 10.8, 8.2) + shake
+
+    var focus_pull = Vector3.ZERO
+    if cast_camera_pull > 0.0 and cast_target != null and is_instance_valid(cast_target):
+        var target_offset = cast_target.position - player.position
+        target_offset.y = 0.0
+        focus_pull = target_offset.limit_length(1.4) * cast_camera_pull * 0.32
+
+    var desired = player.position + Vector3(0.0, 10.8, 8.2) + focus_pull + shake
     camera.position = camera.position.lerp(desired, min(1.0, delta * 8.0))
 
 func _play_animation(root, keywords):
