@@ -10,6 +10,7 @@ var spellbook = null
 var last_player_attack_serial = 0
 var effects = []
 var enemy_attack_serials = {}
+var known_enemy_ids = {}
 
 func _ready():
     game = get_parent()
@@ -26,8 +27,33 @@ func _process(delta):
         _spawn_player_cast()
     last_player_attack_serial = attack_serial
 
+    _scan_new_enemies()
     _scan_enemy_casts()
     _update_effects(delta)
+
+func _scan_new_enemies():
+    var enemy_list = game.get("enemies")
+    for enemy in enemy_list:
+        if not is_instance_valid(enemy):
+            continue
+        var id = enemy.get_instance_id()
+        if known_enemy_ids.has(id):
+            continue
+        known_enemy_ids[id] = true
+        _spawn_enemy_arrival(enemy)
+
+func _spawn_enemy_arrival(enemy):
+    var position = enemy.global_position + Vector3(0.0, 0.58, 0.0)
+
+    var magic = _make_sprite(MAGIC_TEX, Color(0.42, 0.28, 0.70, 0.88), 0.0045)
+    magic.global_position = position
+    add_child(magic)
+    effects.append({"node": magic, "kind": "arrival", "life": 0.46, "max_life": 0.46})
+
+    var circle = _make_sprite(CIRCLE_TEX, Color(0.32, 0.20, 0.58, 0.78), 0.0042)
+    circle.global_position = position
+    add_child(circle)
+    effects.append({"node": circle, "kind": "arrival_circle", "life": 0.42, "max_life": 0.42})
 
 func _spawn_player_cast():
     var target = game.get("cast_target")
@@ -109,6 +135,16 @@ func _update_effects(delta):
         if kind == "cast" or kind == "enemy_cast":
             node.scale = Vector3.ONE * (0.55 + (1.0 - ratio) * 0.82)
             node.rotation.z += delta * 6.0
+            _set_alpha(node, ratio)
+
+        elif kind == "arrival":
+            node.scale = Vector3.ONE * (0.48 + (1.0 - ratio) * 1.25)
+            node.rotation.z += delta * 5.0
+            _set_alpha(node, ratio)
+
+        elif kind == "arrival_circle":
+            node.scale = Vector3.ONE * (0.35 + (1.0 - ratio) * 1.55)
+            node.rotation.z -= delta * 3.5
             _set_alpha(node, ratio)
 
         elif kind == "trace":
