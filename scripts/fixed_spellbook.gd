@@ -6,7 +6,7 @@ var game = null
 var mage = null
 var book = null
 var float_time = 0.0
-var last_attack_timer = 0.0
+var last_attack_serial = 0
 var cast_push = 0.0
 
 func _ready():
@@ -24,10 +24,10 @@ func _process(delta):
     if book == null or not is_instance_valid(book):
         return
 
-    var attack_timer = float(game.get("attack_timer"))
-    if attack_timer > last_attack_timer + 0.30:
+    var attack_serial = int(game.get("player_attack_serial"))
+    if attack_serial > last_attack_serial:
         cast_push = 1.0
-    last_attack_timer = attack_timer
+    last_attack_serial = attack_serial
     cast_push = max(0.0, cast_push - delta * 5.0)
 
     var side = mage.global_transform.basis.x.normalized()
