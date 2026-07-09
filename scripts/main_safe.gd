@@ -7,15 +7,13 @@ const NATURE_ROOT = "res://assets/nature"
 var player = null
 var camera = null
 var enemies = []
+var projectiles = []
 var monster_paths = []
-var nature_ground = []
-var nature_trees = []
-var nature_rocks = []
-var nature_plants = []
+var nature_paths = []
 var move_input = Vector2.ZERO
 var touch_origin = Vector2.ZERO
 var active_touch = -1
-var attack_timer = 0.0
+var fire_timer = 0.0
 var wave = 1
 var score = 0
 var hp = 100
@@ -25,15 +23,17 @@ var hp_bar = null
 var status_label = null
 var boot_state = 0
 var boot_index = 0
+var boot_label = null
 var boot_rng = RandomNumberGenerator.new()
 
 func _ready():
+    set_process(true)
     boot_rng.seed = 68421
     _build_world()
     _build_hud()
     _spawn_player()
     boot_state = 1
-    status_label.text = "PAKET-ASSETS WERDEN GELADEN ..."
+    status_label.text = "MONSTER WERDEN GESUCHT ..."
 
 func _process(delta):
     if boot_state > 0:
@@ -41,11 +41,12 @@ func _process(delta):
         return
     _update_player(delta)
     _update_enemies(delta)
+    _update_projectiles(delta)
     _update_camera(delta)
-    attack_timer -= delta
-    if attack_timer <= 0.0:
-        attack_timer = 0.62
-        _attack_nearest_enemy()
+    fire_timer -= delta
+    if fire_timer <= 0.0:
+        fire_timer = 0.65
+        _cast_bolt()
 
 func _input(event):
     if event is InputEventScreenTouch:
@@ -57,67 +58,66 @@ func _input(event):
             active_touch = -1
             move_input = Vector2.ZERO
     elif event is InputEventScreenDrag and event.index == active_touch:
-        move_input = ((event.position - touch_origin) / 115.0).limit_length(1.0)
+        move_input = ((event.position - touch_origin) / 100.0).limit_length(1.0)
 
 func _boot_step():
     if boot_state == 1:
-        _collect_monster_roster()
+        monster_paths = _find_models_limited(MONSTER_ROOT, 8, [])
         boot_state = 2
-        status_label.text = "ARENA WIRD AUS NATURE-PAKET GEBAUT ..."
+        status_label.text = "WALD WIRD ERSCHAFFEN ..."
         return
     if boot_state == 2:
-        nature_ground = _find_models_limited(NATURE_ROOT, 18, ["ground", "grass", "terrain", "floor", "dirt", "tile"])
-        nature_trees = _find_models_limited(NATURE_ROOT, 18, ["tree", "trunk", "stump"])
-        nature_rocks = _find_models_limited(NATURE_ROOT, 18, ["rock", "stone", "boulder"])
-        nature_plants = _find_models_limited(NATURE_ROOT, 24, ["bush", "flower", "plant", "fern", "grass"])
+        nature_paths = _find_models_limited(NATURE_ROOT, 16, ["tree", "rock", "grass", "bush", "flower", "plant", "stump"])
         boot_state = 3
         boot_index = 0
         return
     if boot_state == 3:
         var count = 0
-        while count < 3 and boot_index < 56:
-            _spawn_arena_piece(boot_index)
+        while count < 2 and boot_index < 24:
+            _spawn_one_nature(boot_index)
             boot_index += 1
             count += 1
-        if boot_index >= 56:
+        if boot_index >= 24:
             boot_state = 4
-            status_label.text = "MONSTER-WELLE WIRD GELADEN ..."
+            status_label.text = "DIE ERSTE WELLE KOMMT ..."
         return
     if boot_state == 4:
         _start_wave()
         boot_state = 0
-        status_label.text = "RUNENANGRIFF AKTIV"
+        status_label.text = "ARCANE BOLT AKTIV"
 
 func _build_world():
     var world_environment = WorldEnvironment.new()
     var environment = Environment.new()
     environment.background_mode = Environment.BG_COLOR
-    environment.background_color = Color("56645e")
+    environment.background_color = Color("697b76")
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color("c4d0c6")
-    environment.ambient_light_energy = 0.72
-    environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+    environment.ambient_light_color = Color("becdc3")
+    environment.ambient_light_energy = 0.66
     world_environment.environment = environment
     add_child(world_environment)
 
     var sun = DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-52.0, -38.0, 0.0)
-    sun.light_color = Color("ffe0b0")
-    sun.light_energy = 1.55
+    sun.rotation_degrees = Vector3(-56.0, -32.0, 0.0)
+    sun.light_color = Color("ffe4b8")
+    sun.light_energy = 1.8
     sun.shadow_enabled = true
     add_child(sun)
 
-    var fill = DirectionalLight3D.new()
-    fill.rotation_degrees = Vector3(-42.0, 142.0, 0.0)
-    fill.light_color = Color("8da7c7")
-    fill.light_energy = 0.34
-    fill.shadow_enabled = false
-    add_child(fill)
+    var ground = MeshInstance3D.new()
+    var ground_mesh = PlaneMesh.new()
+    ground_mesh.size = Vector2(58.0, 58.0)
+    ground.mesh = ground_mesh
+    var mat = StandardMaterial3D.new()
+    mat.albedo_color = Color("3f5940")
+    mat.roughness = 0.96
+    ground.material_override = mat
+    add_child(ground)
 
     camera = Camera3D.new()
-    camera.position = Vector3(0.0, 22.5, 18.5)
-    camera.rotation_degrees = Vector3(-54.0, 0.0, 0.0)
-    camera.fov = 43.0
+    camera.position = Vector3(0.0, 15.7, 13.9)
+    camera.rotation_degrees = Vector3(-49.0, 0.0, 0.0)
+    camera.fov = 35.0
     camera.current = true
     add_child(camera)
 
@@ -128,72 +128,42 @@ func _build_hud():
     var title = Label.new()
     title.text = "RUNEBORN"
     title.position = Vector2(38.0, 48.0)
-    title.add_theme_font_size_override("font_size", 30)
-    title.add_theme_color_override("font_color", Color("f1eaff"))
+    title.add_theme_font_size_override("font_size", 34)
     layer.add_child(title)
 
     wave_label = Label.new()
-    wave_label.position = Vector2(40.0, 90.0)
-    wave_label.add_theme_font_size_override("font_size", 18)
-    wave_label.add_theme_color_override("font_color", Color("eee7f5"))
+    wave_label.position = Vector2(40.0, 94.0)
+    wave_label.add_theme_font_size_override("font_size", 20)
     layer.add_child(wave_label)
 
     score_label = Label.new()
-    score_label.position = Vector2(40.0, 118.0)
-    score_label.add_theme_font_size_override("font_size", 16)
-    score_label.add_theme_color_override("font_color", Color("d4cede"))
+    score_label.position = Vector2(40.0, 124.0)
+    score_label.add_theme_font_size_override("font_size", 18)
     layer.add_child(score_label)
 
     hp_bar = ProgressBar.new()
-    hp_bar.position = Vector2(40.0, 150.0)
-    hp_bar.size = Vector2(280.0, 18.0)
+    hp_bar.position = Vector2(40.0, 162.0)
+    hp_bar.size = Vector2(310.0, 24.0)
     hp_bar.min_value = 0.0
     hp_bar.max_value = 100.0
     hp_bar.show_percentage = false
     layer.add_child(hp_bar)
 
     status_label = Label.new()
-    status_label.position = Vector2(40.0, 184.0)
-    status_label.add_theme_font_size_override("font_size", 16)
-    status_label.add_theme_color_override("font_color", Color("d8ccef"))
+    status_label.position = Vector2(40.0, 205.0)
+    status_label.add_theme_font_size_override("font_size", 18)
     layer.add_child(status_label)
     _refresh_hud()
 
 func _spawn_player():
     var packed = load(PLAYER_SCENE)
     if packed == null:
-        status_label.text = "MAGE-ASSET FEHLT"
+        status_label.text = "MAGE ASSET FEHLT"
         return
     player = packed.instantiate()
-    player.name = "RunebornMage"
-    player.scale = Vector3.ONE * 0.62
+    player.scale = Vector3.ONE * 1.34
     add_child(player)
-    _play_animation(player, ["Idle", "idle", "General/Idle"])
-
-func _collect_monster_roster():
-    monster_paths.clear()
-    _append_unique(monster_paths, _find_models_limited(MONSTER_ROOT, 4, ["/big/", "big/"]))
-    _append_unique(monster_paths, _find_models_limited(MONSTER_ROOT, 4, ["/blob/", "blob/"]))
-    _append_unique(monster_paths, _find_models_limited(MONSTER_ROOT, 4, ["/flying/", "flying/"]))
-    if monster_paths.size() == 0:
-        _append_unique(monster_paths, _find_models_limited(MONSTER_ROOT, 12, []))
-
-func _append_unique(target, source):
-    for path in source:
-        if not target.has(path) and _scene_has_visual_mesh(path):
-            target.append(path)
-
-func _scene_has_visual_mesh(path):
-    var packed = load(path)
-    if packed == null:
-        return false
-    var instance = packed.instantiate()
-    if instance == null:
-        return false
-    var meshes = instance.find_children("*", "MeshInstance3D", true, false)
-    var valid = meshes.size() > 0
-    instance.free()
-    return valid
+    _play_first_animation(player)
 
 func _find_models_limited(root, limit, include_terms):
     var result = []
@@ -235,51 +205,23 @@ func _matches_include(lower_path, include_terms):
             return true
     return false
 
-func _spawn_arena_piece(index):
-    if index < 16:
-        _spawn_ground_piece(index)
-    elif index < 30:
-        _spawn_boundary_piece(index, nature_rocks, 11.5, 17.0, 0.8, 1.35)
-    elif index < 42:
-        _spawn_boundary_piece(index, nature_trees, 14.0, 22.0, 0.85, 1.25)
-    else:
-        _spawn_boundary_piece(index, nature_plants, 8.5, 19.0, 0.7, 1.1)
-
-func _spawn_ground_piece(index):
-    if nature_ground.size() == 0:
+func _spawn_one_nature(index):
+    if nature_paths.size() == 0:
         return
-    var path = nature_ground[index % nature_ground.size()]
-    var packed = load(path)
-    if packed == null:
-        return
-    var item = packed.instantiate()
-    var column = index % 4
-    var row = index / 4
-    item.position = Vector3((float(column) - 1.5) * 6.0, -0.02, (float(row) - 1.5) * 6.0)
-    item.rotation.y = float((index * 3) % 4) * PI * 0.5
-    item.scale = Vector3.ONE * 1.2
-    add_child(item)
-
-func _spawn_boundary_piece(index, pool, min_radius, max_radius, min_scale, max_scale):
-    if pool.size() == 0:
-        return
-    var path = pool[index % pool.size()]
+    var path = nature_paths[index % nature_paths.size()]
     var packed = load(path)
     if packed == null:
         return
     var item = packed.instantiate()
     var angle = boot_rng.randf_range(0.0, TAU)
-    var radius = boot_rng.randf_range(min_radius, max_radius)
+    var radius = boot_rng.randf_range(10.5, 27.0)
     item.position = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
     item.rotation.y = boot_rng.randf_range(0.0, TAU)
-    item.scale = Vector3.ONE * boot_rng.randf_range(min_scale, max_scale)
+    item.scale = Vector3.ONE * boot_rng.randf_range(0.82, 1.38)
     add_child(item)
 
 func _start_wave():
-    if monster_paths.size() == 0:
-        status_label.text = "KEINE LADBAREN MONSTER-ASSETS"
-        return
-    var count = min(14, 5 + wave * 2)
+    var count = 6 + wave * 2
     var i = 0
     while i < count:
         _spawn_enemy(i, count)
@@ -287,30 +229,27 @@ func _start_wave():
     _refresh_hud()
 
 func _spawn_enemy(index, total):
-    if monster_paths.size() == 0:
-        return
-    var path = monster_paths[index % monster_paths.size()]
-    var packed = load(path)
-    if packed == null:
-        return
-    var enemy = packed.instantiate()
+    var enemy = null
+    if monster_paths.size() > 0:
+        var path = monster_paths[index % monster_paths.size()]
+        var packed = load(path)
+        if packed != null:
+            enemy = packed.instantiate()
     if enemy == null:
-        return
-    var meshes = enemy.find_children("*", "MeshInstance3D", true, false)
-    if meshes.size() == 0:
-        enemy.free()
-        return
+        enemy = MeshInstance3D.new()
+        var mesh = SphereMesh.new()
+        mesh.radius = 0.5
+        mesh.height = 1.0
+        enemy.mesh = mesh
     var angle = TAU * float(index) / float(max(1, total))
-    var radius = 11.5 + fmod(float(index) * 1.7, 4.5)
+    var radius = 13.0 + fmod(float(index) * 2.27, 8.0)
     enemy.position = Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
-    enemy.scale = Vector3.ONE * 0.78
-    enemy.set_meta("base_scale", enemy.scale)
     enemy.set_meta("hp", 3 + wave)
-    enemy.set_meta("speed", 1.35 + float(wave) * 0.07)
+    enemy.set_meta("speed", 1.5 + float(wave) * 0.08)
     enemy.set_meta("cooldown", 0.0)
     add_child(enemy)
     enemies.append(enemy)
-    _play_animation(enemy, ["Walk", "walk", "Run", "run", "Idle", "idle"])
+    _play_first_animation(enemy)
 
 func _update_player(delta):
     if player == null:
@@ -322,13 +261,8 @@ func _update_player(delta):
     var dir = Vector3(input_vec.x, 0.0, input_vec.y)
     if dir.length() > 0.05:
         dir = dir.normalized()
-        player.position += dir * 5.6 * delta
-        player.position.x = clamp(player.position.x, -10.0, 10.0)
-        player.position.z = clamp(player.position.z, -10.0, 10.0)
-        player.rotation.y = lerp_angle(player.rotation.y, atan2(dir.x, dir.z), min(1.0, delta * 12.0))
-        _play_animation(player, ["Walk", "walk", "Run", "run"])
-    else:
-        _play_animation(player, ["Idle", "idle", "General/Idle"])
+        player.position += dir * 5.8 * delta
+        player.rotation.y = lerp_angle(player.rotation.y, atan2(dir.x, dir.z), min(1.0, delta * 13.0))
 
 func _update_enemies(delta):
     if player == null:
@@ -342,20 +276,33 @@ func _update_enemies(delta):
         enemy.set_meta("cooldown", cooldown)
         var offset = player.position - enemy.position
         offset.y = 0.0
-        if offset.length() > 1.15:
-            enemy.position += offset.normalized() * float(enemy.get_meta("speed", 1.5)) * delta
-            enemy.rotation.y = lerp_angle(enemy.rotation.y, atan2(offset.x, offset.z), min(1.0, delta * 9.0))
+        if offset.length() > 1.2:
+            enemy.position += offset.normalized() * float(enemy.get_meta("speed", 1.7)) * delta
         elif cooldown <= 0.0:
-            enemy.set_meta("cooldown", 0.85)
+            enemy.set_meta("cooldown", 0.8)
             hp = max(0, hp - 5)
             _refresh_hud()
 
-func _attack_nearest_enemy():
+func _cast_bolt():
     var target = _nearest_enemy()
     if target == null or player == null:
         return
-    _play_animation(player, ["Attack", "attack", "Spell", "spell", "Combat"])
-    _hit_enemy(target)
+    var orb = MeshInstance3D.new()
+    var mesh = SphereMesh.new()
+    mesh.radius = 0.2
+    mesh.height = 0.4
+    orb.mesh = mesh
+    var mat = StandardMaterial3D.new()
+    mat.albedo_color = Color("7a4cff")
+    mat.emission_enabled = true
+    mat.emission = Color("a86fff")
+    mat.emission_energy_multiplier = 5.0
+    orb.material_override = mat
+    orb.position = player.position + Vector3(0.0, 1.0, 0.0)
+    orb.set_meta("target", target)
+    orb.set_meta("life", 2.0)
+    add_child(orb)
+    projectiles.append(orb)
 
 func _nearest_enemy():
     if player == null:
@@ -370,13 +317,32 @@ func _nearest_enemy():
                 target = enemy
     return target
 
+func _update_projectiles(delta):
+    var copy = projectiles.duplicate()
+    for orb in copy:
+        if not is_instance_valid(orb):
+            projectiles.erase(orb)
+            continue
+        var target = orb.get_meta("target")
+        var life = float(orb.get_meta("life", 0.0)) - delta
+        orb.set_meta("life", life)
+        if life <= 0.0 or target == null or not is_instance_valid(target):
+            projectiles.erase(orb)
+            orb.queue_free()
+            continue
+        var direction = target.global_position + Vector3(0.0, 0.6, 0.0) - orb.global_position
+        if direction.length() < 0.7:
+            _hit_enemy(target)
+            projectiles.erase(orb)
+            orb.queue_free()
+            continue
+        orb.global_position += direction.normalized() * 13.0 * delta
+
 func _hit_enemy(enemy):
     if not is_instance_valid(enemy):
         return
     var enemy_hp = int(enemy.get_meta("hp", 1)) - 1
     enemy.set_meta("hp", enemy_hp)
-    var base_scale = enemy.get_meta("base_scale", enemy.scale)
-    enemy.scale = base_scale * 1.12
     if enemy_hp <= 0:
         enemies.erase(enemy)
         score += 5
@@ -385,14 +351,12 @@ func _hit_enemy(enemy):
         if enemies.size() == 0:
             wave += 1
             _start_wave()
-    else:
-        enemy.scale = base_scale
 
 func _update_camera(delta):
     if player == null or camera == null:
         return
-    var desired = player.position + Vector3(0.0, 22.5, 18.5)
-    camera.position = camera.position.lerp(desired, min(1.0, delta * 4.8))
+    var desired = player.position + Vector3(0.0, 15.7, 13.9)
+    camera.position = camera.position.lerp(desired, min(1.0, delta * 5.8))
 
 func _refresh_hud():
     if wave_label != null:
@@ -402,14 +366,11 @@ func _refresh_hud():
     if hp_bar != null:
         hp_bar.value = hp
 
-func _play_animation(root, candidates):
+func _play_first_animation(root):
     var players = root.find_children("*", "AnimationPlayer", true, false)
     if players.size() == 0:
         return
     var animation_player = players[0]
-    var current = animation_player.current_animation
-    for candidate in candidates:
-        if animation_player.has_animation(candidate):
-            if current != candidate:
-                animation_player.play(candidate)
-            return
+    var names = animation_player.get_animation_list()
+    if names.size() > 0:
+        animation_player.play(names[0])
