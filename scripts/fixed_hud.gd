@@ -9,6 +9,8 @@ var score_label = null
 var wave_label = null
 var wave_frame = null
 var last_wave = -1
+var last_hit_serial = 0
+var hit_pulse = 0.0
 
 func _ready():
     layer = 20
@@ -23,9 +25,19 @@ func _process(delta):
     var current_hp = int(game.get("hp"))
     var current_score = int(game.get("score"))
     var current_wave = int(game.get("wave"))
+    var current_hit_serial = int(game.get("player_hit_serial"))
+
+    if current_hit_serial > last_hit_serial:
+        hit_pulse = 1.0
+    last_hit_serial = current_hit_serial
+    hit_pulse = max(0.0, hit_pulse - delta * 5.5)
 
     hp_label.text = "HP  %03d" % current_hp
     score_label.text = "RUNE  %05d" % current_score
+
+    var hp_scale = 1.0 + sin(hit_pulse * PI) * 0.14
+    hp_label.scale = hp_label.scale.lerp(Vector2(hp_scale, hp_scale), min(1.0, delta * 16.0))
+    hp_label.modulate = Color(1.0, 0.72 + (1.0 - hit_pulse) * 0.28, 0.82 + (1.0 - hit_pulse) * 0.18, 1.0)
 
     if current_wave != last_wave:
         wave_label.text = "WAVE  %02d" % current_wave
@@ -67,6 +79,7 @@ func _build_hud():
     hp_label = Label.new()
     hp_label.position = Vector2(25.0, 55.0)
     hp_label.size = Vector2(120.0, 30.0)
+    hp_label.pivot_offset = Vector2(60.0, 15.0)
     hp_label.add_theme_font_size_override("font_size", 17)
     hp_label.add_theme_color_override("font_color", Color("f2e9ff"))
     info_panel.add_child(hp_label)
